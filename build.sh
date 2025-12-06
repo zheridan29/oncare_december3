@@ -14,7 +14,7 @@ pip install "numpy==1.26.4" "scipy==1.16.1"
 pip install "pandas>=0.19" "scikit-learn>=0.22" "statsmodels>=0.13.2" "joblib>=0.11"
 
 # Now install pmdarima with --no-build-isolation so it uses the installed dependencies
-pip install pmdarima==2.0.4 --no-build-isolation
+pip install pmdarima
 
 # Install all other requirements (excluding pmdarima to avoid reinstall)
 pip install -r requirements.txt
