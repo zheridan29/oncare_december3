@@ -40,7 +40,7 @@ pandas==2.3.2
 patsy==1.0.1
 pillow==11.3.0
 plotly==6.3.0
-pmdarima==2.0.4
+pmdarima
 prompt_toolkit==3.0.52
 psycopg2-binary==2.9.11
 pyparsing==3.2.3
