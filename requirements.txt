@@ -34,7 +34,7 @@ kombu==5.5.4
 matplotlib==3.10.6
 mysqlclient==2.2.7
 narwhals==2.3.0
-numpy==2.3.2
+numpy<2.0  # pmdarima requires numpy < 2.0
 packaging==25.0
 pandas==2.3.2
 patsy==1.0.1

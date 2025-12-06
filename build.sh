@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
 set -o errexit
 
-# Install system dependencies required for pmdarima compilation
-apt-get update && apt-get install -y \
-    build-essential \
-    gcc \
-    g++ \
-    python3-dev \
-    libatlas-base-dev \
-    liblapack-dev \
-    libblas-dev \
-    || echo "System dependencies installation failed, continuing..."
-
-# Upgrade pip and install wheel
+# Upgrade pip and install wheel first
 pip install --upgrade pip wheel setuptools
 
-# Install numpy and scipy first (pmdarima dependencies)
-pip install numpy scipy
+# Install Cython first (required for pmdarima build)
+pip install Cython
 
-# Install all requirements
+# Install numpy and scipy with compatible versions (pmdarima may not support numpy 2.x)
+pip install "numpy<2.0" "scipy<2.0"
+
+# Install other build dependencies that pmdarima needs
+pip install "pandas>=0.19" "scikit-learn>=0.22" "statsmodels>=0.13.2" "joblib>=0.11"
+
+# Now install pmdarima separately (it will use the already-installed dependencies)
+pip install pmdarima==2.0.4
+
+# Install all other requirements (excluding pmdarima to avoid reinstall)
 pip install -r requirements.txt
 
 python manage.py collectstatic --no-input
