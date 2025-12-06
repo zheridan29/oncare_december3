@@ -14,10 +14,13 @@ pip install "numpy" "scipy"
 pip install "pandas>=0.19" "scikit-learn>=0.22" "statsmodels>=0.13.2" "joblib>=0.11"
 
 # Now install pmdarima with --no-build-isolation so it uses the installed dependencies
-pip install pmdarima
+pip install pmdarima --no-build-isolation
 
 # Install all other requirements (excluding pmdarima to avoid reinstall)
 pip install -r requirements.txt
+
+# Create logs directory if it doesn't exist (required for Django logging)
+mkdir -p logs
 
 python manage.py collectstatic --no-input
 
