@@ -124,11 +124,11 @@ WSGI_APPLICATION = 'medicine_ordering_system.wsgi.application'
     # DATABASES = {
     #     'default': {
     #         'ENGINE': 'django.db.backends.postgresql',
-    #         'NAME': 'your_database_name',  # Replace with your PostgreSQL database name
-    #         'USER': 'your_database_user',  # Replace with your PostgreSQL username
-    #         'PASSWORD': 'your_database_password',  # Replace with your PostgreSQL password
+    #         'NAME': 'oncare_medicine_db',  # Replace with your PostgreSQL database name
+    #         'USER': 'postgres',  # Replace with your PostgreSQL username
+    #         'PASSWORD': 'z3rr3Itug',  # Replace with your PostgreSQL password
     #         'HOST': 'localhost',  # Or the IP address/hostname of your PostgreSQL server
-    #         'PORT': '5432',  # Default PostgreSQL port, change if different
+    #         'PORT': '5433',  # Default PostgreSQL port, change if different
     #     }
     # }
 
