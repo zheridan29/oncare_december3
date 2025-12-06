@@ -8,7 +8,7 @@ pip install --upgrade pip wheel setuptools
 pip install Cython
 
 # Install numpy and scipy with compatible versions (pmdarima may not support numpy 2.x)
-pip install "numpy==1.26.4" "scipy==1.16.1"
+pip install "numpy" "scipy"
 
 # Install other build dependencies that pmdarima needs
 pip install "pandas>=0.19" "scikit-learn>=0.22" "statsmodels>=0.13.2" "joblib>=0.11"
