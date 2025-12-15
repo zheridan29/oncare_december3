@@ -52,12 +52,20 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="{{ form.payment_status.id_for_label }}" class="form-label">Payment Status *</label>
-                                {{ form.payment_status }}
-                                {% if form.payment_status.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.payment_status.errors %}
-                                            <small>{{ error }}</small>
-                                        {% endfor %}
+                                {% if object.payment_status == 'paid' %}
+                                    {{ form.payment_status }}
+                                    {% if form.payment_status.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.payment_status.errors %}
+                                                <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    <input type="text" class="form-control" value="{{ object.get_payment_status_display }}" disabled readonly>
+                                    <div class="form-text text-warning">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                        Payment status can only be updated after payment is verified. Please verify the payment first.
                                     </div>
                                 {% endif %}
                                 <div class="form-text">

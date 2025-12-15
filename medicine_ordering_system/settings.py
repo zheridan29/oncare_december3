@@ -121,25 +121,26 @@ WSGI_APPLICATION = 'medicine_ordering_system.wsgi.application'
 #     }
 # }
 
-    # DATABASES = {
-    #     'default': {
-    #         'ENGINE': 'django.db.backends.postgresql',
-    #         'NAME': 'oncare_medicine_db',  # Replace with your PostgreSQL database name
-    #         'USER': 'postgres',  # Replace with your PostgreSQL username
-    #         'PASSWORD': 'z3rr3Itug',  # Replace with your PostgreSQL password
-    #         'HOST': 'localhost',  # Or the IP address/hostname of your PostgreSQL server
-    #         'PORT': '5433',  # Default PostgreSQL port, change if different
-    #     }
-    # }
+DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'oncare_medicine_db',  # Replace with your PostgreSQL database name
+            'USER': 'postgres',  # Replace with your PostgreSQL username
+            'PASSWORD': 'z3rr3Itug',  # Replace with your PostgreSQL password
+            'HOST': 'localhost',  # Or the IP address/hostname of your PostgreSQL server
+            'PORT': '5433',  # Default PostgreSQL port, change if different
+        }
+    }
 
 # Database configuration - uses Render PostgreSQL when DATABASE_URL is set
-DATABASES = {
-    'default': dj_database_url.config(
-        # Replace this value with your local database's connection string for local development
-        default='postgresql://postgres:z3rr3Itug@localhost:5433/oncare_medicine_db',
-        conn_max_age=600
-    )
-}
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         # Replace this value with your local database's connection string for local development
+#         # default='postgresql://postgres:z3rr3Itug@localhost:5433/oncare_medicine_db',
+#         default='postgresql://oncare_medicine_db_user:ZfkXIq7eXan7BDLYNoLqZdvIwnmq0P4H@dpg-d4pq8kshg0os73fs4g9g-a.singapore-postgres.render.com/oncare_medicine_db',
+#         conn_max_age=600
+#     )
+# }
 
 # DATABASES = {
 #     'default': {

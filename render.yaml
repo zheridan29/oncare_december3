@@ -10,7 +10,7 @@ services:
     name: medicine-ordering-system
     runtime: python
     buildCommand: './build.sh'
-    startCommand: 'python -m gunicorn medicine_ordering_system.asgi:application -k uvicorn.workers.UvicornWorker'
+    startCommand: gunicorn medicine_ordering_system.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: DATABASE_URL
         fromDatabase:

@@ -194,6 +194,34 @@ class OrderStatusUpdateForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['status'].choices = Order.STATUS_CHOICES
         self.fields['payment_status'].choices = Order.PAYMENT_STATUS_CHOICES
+        
+        # Disable payment_status field if payment is not verified (not paid)
+        if self.instance and self.instance.payment_status != 'paid':
+            self.fields['payment_status'].widget.attrs['disabled'] = True
+            self.fields['payment_status'].required = False
+            
+            # Remove 'delivered' from status choices if payment is not paid
+            status_choices = list(Order.STATUS_CHOICES)
+            status_choices = [choice for choice in status_choices if choice[0] != 'delivered']
+            self.fields['status'].choices = status_choices
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        # If payment_status field was disabled, restore original value
+        if self.instance and self.instance.payment_status != 'paid':
+            cleaned_data['payment_status'] = self.instance.payment_status
+        
+        # Validate that 'delivered' status can only be set if payment is paid
+        new_status = cleaned_data.get('status')
+        payment_status = cleaned_data.get('payment_status', self.instance.payment_status if self.instance else 'pending')
+        
+        if new_status == 'delivered' and payment_status != 'paid':
+            raise forms.ValidationError({
+                'status': 'Order status cannot be set to "Delivered" unless payment status is "Paid". Please verify the payment first.'
+            })
+        
+        return cleaned_data
 
 class PrescriptionUploadForm(forms.ModelForm):
     """Form for uploading prescriptions"""

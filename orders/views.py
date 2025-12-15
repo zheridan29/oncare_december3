@@ -946,7 +946,7 @@ class PharmacistOrderDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailV
 
 
 class OrderStatusUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
-    """View for pharmacist/admin to update order status"""
+    """Update order status and payment status"""
     model = Order
     form_class = OrderStatusUpdateForm
     template_name = 'orders/order_status_update.html'
@@ -954,26 +954,35 @@ class OrderStatusUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
     def test_func(self):
         return self.request.user.is_pharmacist_admin or self.request.user.is_admin
     
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['instance'] = self.get_object()
+        return kwargs
+    
     def get_success_url(self):
-        return reverse_lazy('orders:pharmacist_order_detail', kwargs={'pk': self.object.pk})
+        """Return the URL to redirect to after a successful form submission"""
+        return reverse('orders:pharmacist_order_detail', kwargs={'pk': self.object.pk})
     
     def form_valid(self, form):
-        # Add status history entry
+        # If payment_status field was disabled, don't update it
+        if self.object.payment_status != 'paid':
+            # Payment not verified yet, only update status
+            form.instance.payment_status = self.object.payment_status
+        
+        # Validate: Cannot set status to 'delivered' if payment is not paid
+        new_status = form.cleaned_data.get('status')
+        if new_status == 'delivered' and self.object.payment_status != 'paid':
+            messages.error(self.request, 'Cannot set order status to "Delivered" unless payment status is "Paid". Please verify the payment first.')
+            return self.form_invalid(form)
+        
+        # Get old values for history
         old_status = self.object.status
         old_payment_status = self.object.payment_status
         
-        # Check stock availability before confirming order
-        if (old_status == 'pending' and 
-            form.cleaned_data.get('status') == 'confirmed'):
-            
-            is_available, message = self.object.check_stock_availability()
-            if not is_available:
-                messages.error(self.request, f'Cannot confirm order: {message}')
-                return self.form_invalid(form)
-        
+        # Save the form - this will use get_success_url() for redirect
         response = super().form_valid(form)
         
-        # Create status history entry if status changed
+        # Create status history if status changed
         if old_status != self.object.status or old_payment_status != self.object.payment_status:
             from .models import OrderStatusHistory
             OrderStatusHistory.objects.create(
@@ -985,37 +994,8 @@ class OrderStatusUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
                 notes=form.cleaned_data.get('internal_notes', ''),
                 changed_by=self.request.user
             )
-            
-            # Send notifications about status change
-            if old_status != self.object.status:
-                from common.services import NotificationService
-                NotificationService.notify_order_status_change(
-                    order=self.object,
-                    old_status=old_status,
-                    new_status=self.object.status,
-                    changed_by_user=self.request.user
-                )
         
-        # Handle timestamps for status changes
-        if self.object.status == 'confirmed' and not self.object.confirmed_at:
-            from django.utils import timezone
-            self.object.confirmed_at = timezone.now()
-            self.object.save()
-        elif self.object.status == 'shipped' and not self.object.shipped_at:
-            from django.utils import timezone
-            self.object.shipped_at = timezone.now()
-            self.object.save()
-        elif self.object.status == 'delivered' and not self.object.delivered_at:
-            from django.utils import timezone
-            self.object.delivered_at = timezone.now()
-            self.object.save()
-        
-        # If order is delivered and paid, mark all related notifications as read
-        if self.object.status == 'delivered' and self.object.payment_status == 'paid':
-            from common.services import NotificationService
-            NotificationService.mark_order_notifications_as_read(self.object)
-        
-        messages.success(self.request, f'Order status updated successfully.')
+        messages.success(self.request, 'Order status updated successfully!')
         return response
 
 
