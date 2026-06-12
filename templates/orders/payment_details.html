@@ -144,16 +144,56 @@
             <div class="card-header bg-info text-white">
                 <h5 class="card-title mb-0">
                     <i class="fas fa-university me-2"></i>Manual Payment Submission Details
+                    {% if payment_submissions %}({{ payment_submissions|length }}){% endif %}
                 </h5>
             </div>
             <div class="card-body">
-                {% if has_manual_payment_submission %}
-                    <div class="alert alert-info no-auto-hide">
-                        <h6><strong>Payment Information Submitted:</strong></h6>
-                        <pre style="white-space: pre-wrap; font-family: inherit; background: transparent; border: none; padding: 0; margin: 0;">{{ order.internal_notes }}</pre>
+                {% if payment_submissions %}
+                    {% for submission in payment_submissions %}
+                    <div class="payment-submission mb-4 {% if not forloop.last %}border-bottom pb-4{% endif %}">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h6>
+                                    Submission #{{ forloop.counter }}
+                                    <span class="badge bg-{% if submission.status == 'pending' %}warning{% elif submission.status == 'verified' %}success{% elif submission.status == 'rejected' %}danger{% else %}secondary{% endif %}">
+                                        {{ submission.get_status_display }}
+                                    </span>
+                                </h6>
+                                <p class="mb-1"><strong>Reference:</strong> {{ submission.payment_reference }}</p>
+                                <p class="mb-1"><strong>Payment Date:</strong> {{ submission.payment_date|date:"M d, Y" }}</p>
+                                <p class="mb-1"><strong>Submitted by:</strong> {{ submission.submitted_by.get_full_name|default:submission.submitted_by.username }}</p>
+                                <p class="mb-1"><strong>Submitted at:</strong> {{ submission.submitted_at|date:"M d, Y H:i" }}</p>
+                                {% if submission.reviewed_by %}
+                                <p class="mb-1"><strong>Reviewed by:</strong> {{ submission.reviewed_by.get_full_name|default:submission.reviewed_by.username }}</p>
+                                <p class="mb-1"><strong>Reviewed at:</strong> {{ submission.reviewed_at|date:"M d, Y H:i" }}</p>
+                                {% endif %}
+                                {% if submission.rejection_reason %}
+                                <div class="alert alert-danger mt-2 mb-0">
+                                    <strong>Rejection Reason:</strong> {{ submission.rejection_reason }}
+                                </div>
+                                {% endif %}
+                                {% if submission.notes %}
+                                <p class="mb-0 mt-2"><strong>Notes:</strong> {{ submission.notes }}</p>
+                                {% endif %}
+                            </div>
+                            {% if submission.status == 'pending' and user.is_pharmacist_admin or user.is_admin %}
+                            <div>
+                                <form method="post" action="{% url 'orders:reject_payment_submission' order.pk submission.pk %}" class="d-inline" onsubmit="return confirm('Are you sure you want to reject this payment submission?');">
+                                    {% csrf_token %}
+                                    <div class="mb-2">
+                                        <textarea name="rejection_reason" class="form-control form-control-sm" rows="2" placeholder="Rejection reason (optional)"></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        <i class="fas fa-times me-1"></i>Reject
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
+                    {% endfor %}
                 {% else %}
-                    <div class="alert alert-info no-auto-hide">
+                    <div class="alert alert-info mb-0 no-auto-hide">
                         <i class="fas fa-info-circle me-2"></i>
                         <strong>No manual payment submission found.</strong>
                         <br><small>Manual payment submission details will appear here once submitted by the sales representative.</small>
@@ -279,7 +319,7 @@
                     </div>
                     {% endif %}
                     
-                    {% if has_manual_payment_submission %}
+                    {% if has_pending_submission %}
                     <div class="col-md-6 mb-3">
                         <div class="card border-success">
                             <div class="card-body">
@@ -287,7 +327,10 @@
                                     <i class="fas fa-university me-2 text-success"></i>Verify Manual Payment
                                 </h6>
                                 <p class="card-text small">
-                                    Manual payment information has been submitted. Review the details and verify payment.
+                                    Manual payment information has been submitted. Review the details above and verify payment.
+                                    {% if pending_submissions %}
+                                    <br><strong>Pending Submissions:</strong> {{ pending_submissions|length }}
+                                    {% endif %}
                                 </p>
                                 <form method="post" action="{% url 'orders:verify_manual_payment' order.pk %}" class="d-inline">
                                     {% csrf_token %}
@@ -296,6 +339,16 @@
                                     </button>
                                 </form>
                             </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if not gateway_transaction and not has_pending_submission %}
+                    <div class="col-12">
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>No pending payment verification available.</strong>
+                            <br><small>Payment verification actions will appear here when there are pending gateway transactions or manual payment submissions.</small>
                         </div>
                     </div>
                     {% endif %}

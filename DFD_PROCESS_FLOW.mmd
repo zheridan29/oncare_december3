@@ -1,0 +1,62 @@
+flowchart TD
+    %% Simplified Process Flow Diagram
+    %% Shows main processes and their relationships
+    
+    START([Start])
+    
+    %% Main Process Groups
+    subgraph USER["User Management"]
+        P1[1.0 User Management<br/>Authentication & Authorization]
+    end
+    
+    subgraph ORDER["Order Management"]
+        P2[2.0 Order Processing<br/>Cart, Orders, Status]
+    end
+    
+    subgraph PAYMENT["Payment Management"]
+        P3[3.0 Payment Processing<br/>Submissions & Verification]
+    end
+    
+    subgraph INVENTORY["Inventory Management"]
+        P4[4.0 Inventory Management<br/>Catalog & Stock]
+    end
+    
+    subgraph PRESCRIPTION["Prescription Management"]
+        P5[5.0 Prescription Management<br/>Upload & Verification]
+    end
+    
+    subgraph NOTIFICATION["Notification System"]
+        P6[6.0 Notification System<br/>Real-time Alerts]
+    end
+    
+    subgraph ANALYTICS["Analytics & Forecasting"]
+        P7[7.0 Analytics & Forecasting<br/>ARIMA & Reports]
+    end
+    
+    %% Process Flow
+    START --> P1
+    P1 --> P2
+    P2 --> P3
+    P2 --> P4
+    P2 --> P5
+    P3 --> P6
+    P4 --> P6
+    P5 --> P6
+    P2 --> P7
+    P4 --> P7
+    
+    END([End])
+    P6 --> END
+    P7 --> END
+    
+    %% Styling
+    style START fill:#90EE90,stroke:#006400,stroke-width:2px
+    style END fill:#FFB6C1,stroke:#8B0000,stroke-width:2px
+    style USER fill:#E6F3FF,stroke:#0066CC,stroke-width:2px
+    style ORDER fill:#FFF4E1,stroke:#FF6600,stroke-width:2px
+    style PAYMENT fill:#E1FFE1,stroke:#00CC00,stroke-width:2px
+    style INVENTORY fill:#FFFFE1,stroke:#CCCC00,stroke-width:2px
+    style PRESCRIPTION fill:#FFE1FF,stroke:#CC00CC,stroke-width:2px
+    style NOTIFICATION fill:#E1FFFF,stroke:#00CCCC,stroke-width:2px
+    style ANALYTICS fill:#FFE1E1,stroke:#CC0000,stroke-width:2px
+

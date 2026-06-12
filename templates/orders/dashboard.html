@@ -57,26 +57,26 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h4 class="card-title">{{ completed_orders|default:0 }}</h4>
-                        <p class="card-text">Completed Orders</p>
+                        <h4 class="card-title">{{ processing_orders|default:0 }}</h4>
+                        <p class="card-text">Processing Orders</p>
                     </div>
                     <div class="align-self-center">
-                        <i class="fas fa-check-circle fa-2x"></i>
+                        <i class="fas fa-cogs fa-2x"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-warning text-white">
+        <div class="card bg-primary text-white">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h4 class="card-title">₱{{ total_value|default:0|floatformat:2 }}</h4>
-                        <p class="card-text">Total Value</p>
+                        <h4 class="card-title">{{ ready_orders|default:0 }}</h4>
+                        <p class="card-text">Ready for Pickup</p>
                     </div>
                     <div class="align-self-center">
-                        <i class="fas fa-dollar-sign fa-2x"></i>
+                        <i class="fas fa-box-open fa-2x"></i>
                     </div>
                 </div>
             </div>

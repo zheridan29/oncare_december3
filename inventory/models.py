@@ -61,6 +61,7 @@ class Medicine(models.Model):
     # Pricing
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    units_per_box = models.PositiveIntegerField(default=1, help_text='Number of units per box (e.g., 12 units/box)')
     
     # Inventory
     current_stock = models.PositiveIntegerField(default=0)

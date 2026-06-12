@@ -1,0 +1,94 @@
+flowchart TD
+    %% Level 2 DFD: Decomposition of Process 2.0 - Process Orders
+    %% Based on food ordering system examples
+    %% Shows sub-processes within the main "Process Orders" function
+    
+    %% External Entities
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    
+    %% Sub-Processes of 2.0 Process Orders
+    P2_1[2.1 Manage Shopping Cart<br/>Add/Update/Remove Items]
+    P2_2[2.2 Create Order<br/>Convert Cart to Order]
+    P2_3[2.3 Update Order Status<br/>Status Transitions]
+    P2_4[2.4 Track Order History<br/>Status Timeline]
+    
+    %% Data Stores
+    D2[(D2: Orders)]
+    D3[(D3: Cart)]
+    D4[(D4: Inventory)]
+    D5[(D5: Prescriptions)]
+    
+    %% External Entity to Process Flows
+    SR -->|Add to Cart| P2_1
+    SR -->|Update Cart| P2_1
+    SR -->|Remove from Cart| P2_1
+    
+    SR -->|Customer Information| P2_2
+    SR -->|Create Order Request| P2_2
+    
+    PA -->|Status Update| P2_3
+    PA -->|Status Change Request| P2_3
+    
+    SR -->|Order Query| P2_4
+    PA -->|Order Query| P2_4
+    
+    %% Process to Data Store Flows
+    P2_1 -->|Cart Items| D3
+    P2_1 -->|Check Availability| D4
+    D3 -->|Cart Data| P2_1
+    D4 -->|Medicine Information| P2_1
+    D4 -->|Stock Level| P2_1
+    
+    P2_2 -->|Order Data| D2
+    P2_2 -->|Order Items| D2
+    P2_2 -->|Clear Cart| D3
+    P2_2 -->|Check Stock| D4
+    P2_2 -->|Update Stock| D4
+    P2_2 -->|Check Prescription| D5
+    D3 -->|Cart Items| P2_2
+    D4 -->|Medicine Information| P2_2
+    D5 -->|Prescription Status| P2_2
+    
+    P2_3 -->|Order Status| D2
+    P2_3 -->|Status History| D2
+    P2_3 -->|Update Stock| D4
+    D2 -->|Order Information| P2_3
+    D4 -->|Stock Information| P2_3
+    
+    P2_4 -->|Read Orders| D2
+    P2_4 -->|Read History| D2
+    D2 -->|Order Data| P2_4
+    D2 -->|Status History| P2_4
+    
+    %% Process to Process Flows
+    P2_1 -->|Cart Ready| P2_2
+    P2_2 -->|Order Created| P2_3
+    P2_2 -->|Order Created| P2_4
+    P2_3 -->|Status Changed| P2_4
+    
+    %% Process to External Entity Flows
+    P2_1 -->|Cart Contents| SR
+    P2_1 -->|Cart Total| SR
+    P2_1 -->|Stock Status| SR
+    
+    P2_2 -->|Order Confirmation| SR
+    P2_2 -->|Order Number| SR
+    
+    P2_3 -->|Status Updated| SR
+    P2_3 -->|Status Updated| PA
+    
+    P2_4 -->|Order Details| SR
+    P2_4 -->|Order Details| PA
+    P2_4 -->|Status History| SR
+    P2_4 -->|Status History| PA
+    
+    %% Styling
+    classDef externalEntity fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef process fill:#ccffcc,stroke:#00cc00,stroke-width:2px
+    classDef dataStore fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+    
+    class SR,PA externalEntity
+    class P2_1,P2_2,P2_3,P2_4 process
+    class D2,D3,D4,D5 dataStore
+

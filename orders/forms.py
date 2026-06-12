@@ -23,6 +23,16 @@ class OrderForm(forms.ModelForm):
             'payment_status': forms.Select(attrs={'class': 'form-select'}),
             'customer_notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Remove 'paid' option when creating a new order
+        if not self.instance or not self.instance.pk:
+            payment_choices = list(Order.PAYMENT_STATUS_CHOICES)
+            payment_choices = [choice for choice in payment_choices if choice[0] != 'paid']
+            self.fields['payment_status'].choices = payment_choices
+        else:
+            self.fields['payment_status'].choices = Order.PAYMENT_STATUS_CHOICES
 
 
 class OrderWithItemsForm(forms.ModelForm):
@@ -134,6 +144,14 @@ class OrderWithItemsForm(forms.ModelForm):
         self.fields['medicine_3'].queryset = medicine_queryset
         self.fields['medicine_4'].queryset = medicine_queryset
         self.fields['medicine_5'].queryset = medicine_queryset
+        
+        # Remove 'paid' option when creating a new order
+        if not self.instance or not self.instance.pk:
+            payment_choices = list(Order.PAYMENT_STATUS_CHOICES)
+            payment_choices = [choice for choice in payment_choices if choice[0] != 'paid']
+            self.fields['payment_status'].choices = payment_choices
+        else:
+            self.fields['payment_status'].choices = Order.PAYMENT_STATUS_CHOICES
     
     def clean(self):
         cleaned_data = super().clean()

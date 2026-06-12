@@ -1,0 +1,72 @@
+flowchart TD
+    %% Level 1 DFD - Based on Visual Paradigm Food Ordering System example
+    %% Reference: https://www.visual-paradigm.com/tutorials/data-flow-diagram-example-food-ordering-system.jsp
+    %% 
+    %% Following the exact pattern from Visual Paradigm:
+    %% - Process labels are verb phrases (e.g., "Order Food", "Generate Reports", "Order Inventory")
+    %% - Data stores are nouns (e.g., "Order", "Inventory")
+    %% - 3-5 processes are manageable (food system has 3, medicine system has 3-4)
+    %% - Clear, simple data flows
+    
+    %% External Entities
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    SA[System Admin]
+    EPG[External Payment Gateway]
+    
+    %% Main Processes (verb phrases like "Order Food" in food system)
+    P1[1.0 Order Medicine]
+    P2[2.0 Generate Reports]
+    P3[3.0 Order Inventory]
+    
+    %% Data Stores (nouns like "Order", "Inventory" in food system)
+    D1[(D1: Order)]
+    D2[(D2: Inventory)]
+    
+    %% ============================================
+    %% Process 1.0: Order Medicine
+    %% Similar to "Order Food" in food system
+    %% The Order Food process receives the Order, forwards it to the Kitchen,
+    %% stores it in the Order data store, and stores the updated Inventory details
+    %% in the Inventory data store. The process also delivers a Bill to the Customer.
+    %% ============================================
+    SR -->|Order| P1
+    P1 -->|Order| PA
+    P1 -->|Order| D1
+    P1 -->|Inventory details| D2
+    D1 -->|Orders| P1
+    D2 -->|Inventory details| P1
+    P1 -->|Bill| SR
+    
+    %% ============================================
+    %% Process 2.0: Generate Reports
+    %% Similar to "Generate Reports" in food system
+    %% The Manager can receive Reports through the Generate Reports process,
+    %% which takes Inventory details and Orders as input from the Inventory
+    %% and Order data stores, respectively.
+    %% ============================================
+    SA -->|Report Request| P2
+    D2 -->|Inventory details| P2
+    D1 -->|Orders| P2
+    P2 -->|Reports| SA
+    
+    %% ============================================
+    %% Process 3.0: Order Inventory
+    %% Similar to "Order Inventory" in food system
+    %% The Manager can also initiate the Order Inventory process by providing
+    %% an Inventory order. The process forwards the Inventory order to the Supplier
+    %% and stores the updated Inventory details in the Inventory data store.
+    %% ============================================
+    SA -->|Inventory order| P3
+    P3 -->|Inventory order| EPG
+    P3 -->|Inventory details| D2
+    
+    %% Styling
+    classDef externalEntity fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef process fill:#fff4e1,stroke:#ff6600,stroke-width:2px
+    classDef dataStore fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+    
+    class SR,PA,SA,EPG externalEntity
+    class P1,P2,P3 process
+    class D1,D2 dataStore
+

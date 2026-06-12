@@ -1,0 +1,56 @@
+flowchart LR
+    %% Context Diagram - Level 0 DFD
+    %% Based on Visual Paradigm and GeeksforGeeks food ordering system examples
+    %% Shows the system as a single process with external entities
+    %% No data stores at this level
+    
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    SA[System Admin]
+    EPG[External Payment Gateway]
+    
+    SYSTEM[OnCare Medicine<br/>Ordering System]
+    
+    %% Data flows from external entities to system
+    SR -->|Order| SYSTEM
+    SR -->|Payment Information| SYSTEM
+    SR -->|Prescription| SYSTEM
+    SR -->|Login Credentials| SYSTEM
+    
+    PA -->|Order Status Update| SYSTEM
+    PA -->|Payment Verification| SYSTEM
+    PA -->|Inventory Update| SYSTEM
+    PA -->|Prescription Verification| SYSTEM
+    PA -->|Login Credentials| SYSTEM
+    
+    SA -->|User Management| SYSTEM
+    SA -->|System Configuration| SYSTEM
+    SA -->|Login Credentials| SYSTEM
+    
+    EPG -->|Payment Response| SYSTEM
+    
+    %% Data flows from system to external entities
+    SYSTEM -->|Order Confirmation| SR
+    SYSTEM -->|Order Status| SR
+    SYSTEM -->|Payment Status| SR
+    SYSTEM -->|Medicine Catalog| SR
+    SYSTEM -->|Notification| SR
+    
+    SYSTEM -->|Order Details| PA
+    SYSTEM -->|Payment Submission| PA
+    SYSTEM -->|Inventory Report| PA
+    SYSTEM -->|Reorder Alert| PA
+    SYSTEM -->|Notification| PA
+    
+    SYSTEM -->|User List| SA
+    SYSTEM -->|System Report| SA
+    SYSTEM -->|Audit Log| SA
+    
+    SYSTEM -->|Payment Request| EPG
+    
+    style SYSTEM fill:#fff4e1,stroke:#ff6600,stroke-width:3px
+    style SR fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style PA fill:#fff4e1,stroke:#ff6600,stroke-width:2px
+    style SA fill:#ffe1f5,stroke:#cc0066,stroke-width:2px
+    style EPG fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+

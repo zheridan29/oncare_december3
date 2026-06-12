@@ -1,0 +1,84 @@
+flowchart TD
+    %% Order Lifecycle Data Flow Diagram
+    %% Shows the complete order lifecycle from creation to delivery
+    
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    
+    subgraph ORDER_CREATION["Order Creation Phase"]
+        BROWSE[Browse Medicine Catalog]
+        CART[Add to Cart]
+        CREATE[Create Order]
+    end
+    
+    subgraph PAYMENT_PHASE["Payment Phase"]
+        SUBMIT[Submit Payment]
+        VERIFY[Verify Payment]
+        REJECT[Reject Payment]
+    end
+    
+    subgraph FULFILLMENT["Fulfillment Phase"]
+        PROCESS[Process Order]
+        PICKUP[Ready for Pickup]
+        DELIVER[Deliver Order]
+    end
+    
+    subgraph DATA_STORES["Data Stores"]
+        D3[(Cart Database)]
+        D4[(Order Database)]
+        D5[(Status History)]
+        D6[(Payment Submission)]
+        D7[(Transaction Database)]
+        D9[(Medicine Database)]
+        D10[(Stock Movement)]
+    end
+    
+    %% Order Creation Flow
+    SR --> BROWSE
+    BROWSE --> D9
+    D9 --> CART
+    CART --> D3
+    D3 --> CREATE
+    CREATE --> D4
+    CREATE --> D5
+    
+    %% Payment Flow
+    SR --> SUBMIT
+    SUBMIT --> D6
+    SUBMIT --> D8[(File Upload)]
+    PA --> VERIFY
+    D6 --> VERIFY
+    VERIFY --> D7
+    VERIFY --> D4
+    PA --> REJECT
+    REJECT --> D6
+    
+    %% Fulfillment Flow
+    PA --> PROCESS
+    D4 --> PROCESS
+    PROCESS --> D10
+    D10 --> D9
+    PROCESS --> D5
+    PROCESS --> PICKUP
+    PICKUP --> D5
+    PICKUP --> DELIVER
+    DELIVER --> D5
+    DELIVER --> D4
+    
+    %% Notifications
+    CREATE -.->|Order Event| NOTIFY[Notification System]
+    SUBMIT -.->|Payment Event| NOTIFY
+    VERIFY -.->|Payment Event| NOTIFY
+    PROCESS -.->|Status Event| NOTIFY
+    DELIVER -.->|Status Event| NOTIFY
+    
+    NOTIFY --> SR
+    NOTIFY --> PA
+    
+    style SR fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style PA fill:#fff4e1,stroke:#ff6600,stroke-width:2px
+    style ORDER_CREATION fill:#E6F3FF,stroke:#0066CC,stroke-width:2px
+    style PAYMENT_PHASE fill:#E1FFE1,stroke:#00CC00,stroke-width:2px
+    style FULFILLMENT fill:#FFF4E1,stroke:#FF6600,stroke-width:2px
+    style DATA_STORES fill:#F0F0F0,stroke:#666666,stroke-width:2px
+

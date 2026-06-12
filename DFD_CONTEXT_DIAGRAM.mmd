@@ -1,0 +1,22 @@
+flowchart LR
+    %% Context Diagram - Level 0 DFD
+    %% Shows the system as a single process with external entities
+    
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    SA[System Admin]
+    EPG[External Payment Gateway]
+    
+    SYSTEM[OnCare Medicine<br/>Ordering System]
+    
+    SR <-->|Order Requests<br/>Payment Info<br/>Prescription Uploads<br/>Order Status| SYSTEM
+    PA <-->|Order Fulfillment<br/>Payment Verification<br/>Inventory Management<br/>Inventory Reports| SYSTEM
+    SA <-->|User Management<br/>System Configuration<br/>Audit Logs<br/>System Reports| SYSTEM
+    EPG <-->|Payment Processing<br/>Transaction Status| SYSTEM
+    
+    style SYSTEM fill:#fff4e1,stroke:#ff6600,stroke-width:3px
+    style SR fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style PA fill:#fff4e1,stroke:#ff6600,stroke-width:2px
+    style SA fill:#ffe1f5,stroke:#cc0066,stroke-width:2px
+    style EPG fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+

@@ -1,0 +1,116 @@
+flowchart TD
+    %% DFD Level 1: Process 4.0 - Inventory Management
+    %% Shows decomposition of Inventory Management into sub-processes
+    
+    %% External Entities
+    PA[Pharmacist/Admin]
+    SR[Sales Representative]
+    
+    %% Sub-Processes
+    P4_1[4.1 Manage Medicine Catalog<br/>CRUD Operations]
+    P4_2[4.2 Track Stock Movements<br/>Stock In/Out/Adjustment]
+    P4_3[4.3 Generate Reorder Alerts<br/>Low Stock Detection]
+    P4_4[4.4 Update Stock Levels<br/>Stock Calculations]
+    P4_5[4.5 Manage Categories & Manufacturers<br/>Catalog Organization]
+    
+    %% Data Stores
+    D9[(D9: Medicine Database<br/>Medicine Catalog)]
+    D10[(D10: Stock Movement<br/>Stock Changes)]
+    D11[(D11: Reorder Alert<br/>Low Stock Alerts)]
+    D12[(D12: Category Database<br/>Categories)]
+    D13[(D13: Manufacturer Database<br/>Manufacturers)]
+    
+    %% External Entity to Process Flows
+    PA -->|Medicine Info| P4_1
+    PA -->|Create Medicine| P4_1
+    PA -->|Update Medicine| P4_1
+    PA -->|Delete Medicine| P4_1
+    
+    PA -->|Stock Movement| P4_2
+    PA -->|Movement Type| P4_2
+    PA -->|Quantity| P4_2
+    
+    PA -->|Process Alert| P4_3
+    PA -->|View Alerts| P4_3
+    
+    PA -->|Stock Update| P4_4
+    
+    PA -->|Category Info| P4_5
+    PA -->|Manufacturer Info| P4_5
+    
+    SR -->|Medicine Queries| P4_1
+    SR -->|Catalog Search| P4_1
+    
+    %% Process to Data Store Flows
+    P4_1 -->|Store Medicine| D9
+    P4_1 -->|Update Medicine| D9
+    P4_1 -->|Delete Medicine| D9
+    P4_1 -->|Read Categories| D12
+    P4_1 -->|Read Manufacturers| D13
+    D9 -->|Medicine Data| P4_1
+    D12 -->|Category Data| P4_1
+    D13 -->|Manufacturer Data| P4_1
+    
+    P4_2 -->|Create Movement| D10
+    P4_2 -->|Read Medicine| D9
+    P4_2 -->|Update Stock| D9
+    D9 -->|Current Stock| P4_2
+    D10 -->|Movement History| P4_2
+    
+    P4_3 -->|Create Alert| D11
+    P4_3 -->|Read Stock| D9
+    P4_3 -->|Update Alert| D11
+    D9 -->|Stock Levels| P4_3
+    D11 -->|Alert Data| P4_3
+    
+    P4_4 -->|Calculate Stock| D9
+    P4_4 -->|Update Stock| D9
+    P4_4 -->|Read Movements| D10
+    D9 -->|Current Stock| P4_4
+    D10 -->|Movement Data| P4_4
+    
+    P4_5 -->|Store Category| D12
+    P4_5 -->|Update Category| D12
+    P4_5 -->|Store Manufacturer| D13
+    P4_5 -->|Update Manufacturer| D13
+    D12 -->|Category Data| P4_5
+    D13 -->|Manufacturer Data| P4_5
+    
+    %% Process to Process Flows
+    P4_1 -->|Medicine Created| P4_4
+    P4_2 -->|Movement Recorded| P4_4
+    P4_4 -->|Stock Updated| P4_3
+    P4_3 -->|Alert Generated| P4_2
+    P4_5 -->|Category/Manufacturer Updated| P4_1
+    
+    %% Process to External Entity Flows
+    P4_1 -->|Medicine Created| PA
+    P4_1 -->|Medicine Updated| PA
+    P4_1 -->|Medicine List| SR
+    P4_1 -->|Medicine Details| SR
+    P4_1 -->|Medicine Details| PA
+    
+    P4_2 -->|Movement Recorded| PA
+    P4_2 -->|Stock Updated| PA
+    
+    P4_3 -->|Alert Generated| PA
+    P4_3 -->|Alert List| PA
+    P4_3 -->|Alert Details| PA
+    
+    P4_4 -->|Stock Status| PA
+    P4_4 -->|Stock Status| SR
+    
+    P4_5 -->|Category Created| PA
+    P4_5 -->|Manufacturer Created| PA
+    P4_5 -->|Category List| SR
+    P4_5 -->|Manufacturer List| SR
+    
+    %% Styling
+    classDef externalEntity fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef process fill:#ffffcc,stroke:#cccc00,stroke-width:2px
+    classDef dataStore fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+    
+    class SR,PA externalEntity
+    class P4_1,P4_2,P4_3,P4_4,P4_5 process
+    class D9,D10,D11,D12,D13 dataStore
+

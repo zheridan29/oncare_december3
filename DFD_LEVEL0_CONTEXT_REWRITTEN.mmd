@@ -1,0 +1,54 @@
+flowchart LR
+    %% Context Diagram - Level 0 DFD
+    %% Rewritten based on Visual Paradigm Food Ordering System example
+    %% Reference: https://www.visual-paradigm.com/tutorials/data-flow-diagram-example-food-ordering-system.jsp
+    %% 
+    %% A context diagram shows:
+    %% - One process representing the entire system
+    %% - External entities that interact with the system
+    %% - Data flows between entities and system
+    %% - NO data stores at this level
+    
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    SA[System Admin]
+    EPG[External Payment Gateway]
+    
+    SYSTEM[OnCare Medicine<br/>Ordering System]
+    
+    %% Sales Representative flows
+    SR -->|Order| SYSTEM
+    SR -->|Payment Information| SYSTEM
+    SR -->|Prescription| SYSTEM
+    SYSTEM -->|Order Confirmation| SR
+    SYSTEM -->|Bill| SR
+    SYSTEM -->|Medicine Catalog| SR
+    
+    %% Pharmacist/Admin flows
+    PA -->|Order Status Update| SYSTEM
+    PA -->|Payment Verification| SYSTEM
+    PA -->|Inventory Order| SYSTEM
+    SYSTEM -->|Order Details| PA
+    SYSTEM -->|Payment Submission| PA
+    SYSTEM -->|Inventory Report| PA
+    SYSTEM -->|Reorder Alert| PA
+    
+    %% System Admin flows
+    SA -->|User Management| SYSTEM
+    SYSTEM -->|User List| SA
+    SYSTEM -->|System Report| SA
+    
+    %% External Payment Gateway flows
+    EPG -->|Payment Response| SYSTEM
+    SYSTEM -->|Payment Request| EPG
+    
+    style SYSTEM fill:#fff4e1,stroke:#ff6600,stroke-width:3px
+    style SR fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style PA fill:#fff4e1,stroke:#ff6600,stroke-width:2px
+    style SA fill:#ffe1f5,stroke:#cc0066,stroke-width:2px
+    style EPG fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+
+
+
+
+

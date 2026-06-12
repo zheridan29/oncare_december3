@@ -25,8 +25,8 @@
                             <thead>
                                 <tr>
                                     <th>Medicine</th>
-                                    <th>Price</th>
-                                    <th>Quantity</th>
+                                    <th>Box Price</th>
+                                    <th>Quantity (Boxes)</th>
                                     <th>Total</th>
                                     <th>Actions</th>
                                 </tr>
@@ -47,10 +47,18 @@
                                                 <h6 class="mb-1">{{ item.medicine.name }}</h6>
                                                 <small class="text-muted">{{ item.medicine.manufacturer.name }}</small><br>
                                                 <small class="text-muted">{{ item.medicine.category.name }}</small>
+                                                {% if item.medicine.units_per_box %}
+                                                <br><small class="text-info"><i class="fas fa-box me-1"></i>{{ item.medicine.units_per_box }} units/box</small>
+                                                {% endif %}
                                             </div>
                                         </div>
                                     </td>
-                                    <td>₱{{ item.medicine.unit_price|floatformat:2 }}</td>
+                                    <td>
+                                        ₱{{ item.medicine.unit_price|floatformat:2 }}
+                                        {% if item.medicine.units_per_box %}
+                                        <br><small class="text-muted">(₱{{ item.medicine.unit_price|floatformat:2 }} × {{ item.medicine.units_per_box }} = ₱{% widthratio item.medicine.unit_price 1 item.medicine.units_per_box %})</small>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         <div class="input-group" style="width: 120px;">
                                             <button class="btn btn-outline-secondary btn-sm" type="button" onclick="updateQuantity({{ item.id }}, -1)">
@@ -61,6 +69,7 @@
                                                 <i class="fas fa-plus"></i>
                                             </button>
                                         </div>
+                                        <small class="text-muted d-block mt-1">boxes</small>
                                     </td>
                                     <td><strong>₱{{ item.total_price|floatformat:2 }}</strong></td>
                                     <td>

@@ -1,0 +1,112 @@
+flowchart TD
+    %% Level 1 DFD - Rewritten based on Food Ordering System example
+    %% Reference: https://www.visual-paradigm.com/tutorials/data-flow-diagram-example-food-ordering-system.jsp
+    %% 
+    %% Following the exact pattern from food ordering system:
+    %% - 3-5 main processes (verb phrases)
+    %% - External entities
+    %% - Data stores (nouns)
+    %% - Clear data flows
+    
+    %% External Entities
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    SA[System Admin]
+    EPG[External Payment Gateway]
+    
+    %% Main Processes (verb phrases like "Order Food" in food system)
+    P1[1.0 Order Medicine<br/>Place & Process Orders]
+    P2[2.0 Verify Payment<br/>Process Payment Submissions]
+    P3[3.0 Order Inventory<br/>Manage Stock & Reorder]
+    P4[4.0 Generate Reports<br/>Analytics & Forecasting]
+    
+    %% Data Stores (nouns like "Orders", "Inventory" in food system)
+    D1[(D1: Orders)]
+    D2[(D2: Payments)]
+    D3[(D3: Inventory)]
+    D4[(D4: Prescriptions)]
+    
+    %% ============================================
+    %% Process 1.0: Order Medicine
+    %% Similar to "Order Food" in food system
+    %% ============================================
+    SR -->|Order| P1
+    SR -->|Customer Information| P1
+    SR -->|Prescription| P1
+    
+    P1 -->|Order| PA
+    P1 -->|Order Data| D1
+    P1 -->|Prescription Data| D4
+    P1 -->|Updated Inventory| D3
+    
+    D1 -->|Order Information| P1
+    D3 -->|Medicine Availability| P1
+    D4 -->|Prescription Status| P1
+    
+    P1 -->|Order Confirmation| SR
+    P1 -->|Bill| SR
+    
+    %% ============================================
+    %% Process 2.0: Verify Payment
+    %% Similar to payment processing in food system
+    %% ============================================
+    SR -->|Payment Information| P2
+    SR -->|Payment Receipt| P2
+    PA -->|Payment Verification| P2
+    EPG -->|Payment Response| P2
+    
+    P2 -->|Payment Data| D2
+    P2 -->|Updated Order Status| D1
+    
+    D1 -->|Order Information| P2
+    D2 -->|Payment Information| P2
+    
+    P2 -->|Payment Status| SR
+    P2 -->|Payment Details| PA
+    P2 -->|Payment Request| EPG
+    
+    %% ============================================
+    %% Process 3.0: Order Inventory
+    %% Similar to "Order Inventory" in food system
+    %% ============================================
+    PA -->|Inventory Order| P3
+    PA -->|Medicine Information| P3
+    PA -->|Stock Movement| P3
+    
+    P3 -->|Inventory Order| EPG
+    P3 -->|Updated Inventory| D3
+    
+    D3 -->|Inventory Details| P3
+    D3 -->|Current Stock| P3
+    
+    P3 -->|Inventory Report| PA
+    P3 -->|Reorder Alert| PA
+    
+    %% ============================================
+    %% Process 4.0: Generate Reports
+    %% Similar to "Generate Reports" in food system
+    %% ============================================
+    PA -->|Report Request| P4
+    SA -->|Analytics Query| P4
+    
+    D1 -->|Orders| P4
+    D2 -->|Payments| P4
+    D3 -->|Inventory Details| P4
+    
+    P4 -->|Analytics Report| PA
+    P4 -->|System Report| SA
+    P4 -->|Forecast Data| D3
+    
+    %% Styling
+    classDef externalEntity fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef process fill:#fff4e1,stroke:#ff6600,stroke-width:2px
+    classDef dataStore fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+    
+    class SR,PA,SA,EPG externalEntity
+    class P1,P2,P3,P4 process
+    class D1,D2,D3,D4 dataStore
+
+
+
+
+

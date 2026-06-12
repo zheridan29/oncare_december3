@@ -1,0 +1,61 @@
+%% =============================================================================
+%% LEVEL 0 CONTEXT DIAGRAM — Simple description (human-friendly)
+%% =============================================================================
+%%
+%% The diagram shows the whole system as one box (OnCare Medicine Ordering
+%% System). Four types of users or systems talk to it:
+%%
+%%   • Sales Representatives send orders in and get a bill (or order confirmation)
+%%     back.
+%%   • Pharmacists/Admins receive order information from the system so they can
+%%     fulfill orders.
+%%   • System Administrators send inventory orders into the system and get
+%%     reports back.
+%%   • The External Payment Gateway receives inventory or payment-related orders
+%%     from the system.
+%%
+%% At this level we do not show where data is stored—only who sends what to the
+%% system and what they get back. This sets the boundary of the system and
+%% who interacts with it before we zoom into Order, Inventory, and Payment
+%% flows at Level 1.
+%%
+%% =============================================================================
+
+flowchart LR
+    %% Context Diagram - Level 0 DFD
+    %% Based on Visual Paradigm Food Ordering System example
+    %% Reference: https://www.visual-paradigm.com/tutorials/data-flow-diagram-example-food-ordering-system.jsp
+    %% 
+    %% A context diagram shows:
+    %% - One process representing the entire system
+    %% - External entities that interact with the system
+    %% - Data flows between entities and system
+    %% - NO data stores at this level
+
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    SA[System Admin]
+    EPG[External Payment Gateway]
+    
+    SYSTEM[OnCare Medicine<br/>Ordering System]
+    
+    %% Sales Representative flows (similar to Customer in food system)
+    SR -->|Order| SYSTEM
+    SYSTEM -->|Bill| SR
+    
+    %% Pharmacist/Admin flows (similar to Kitchen in food system)
+    SYSTEM -->|Order| PA
+    
+    %% System Admin flows (similar to Manager in food system)
+    SA -->|Inventory Order| SYSTEM
+    SYSTEM -->|Reports| SA
+    
+    %% External Payment Gateway flows (similar to Supplier in food system)
+    SYSTEM -->|Inventory Order| EPG
+    
+    style SYSTEM fill:#fff4e1,stroke:#ff6600,stroke-width:3px
+    style SR fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style PA fill:#fff4e1,stroke:#ff6600,stroke-width:2px
+    style SA fill:#ffe1f5,stroke:#cc0066,stroke-width:2px
+    style EPG fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+

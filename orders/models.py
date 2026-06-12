@@ -186,7 +186,12 @@ class OrderItem(models.Model):
         return f"{self.medicine.name} x {self.quantity} {self.unit} in Order {self.order.order_number}"
     
     def save(self, *args, **kwargs):
-        self.total_price = self.quantity * self.unit_price
+        # When unit is 'boxes', multiply by units_per_box to get total units, then by unit_price
+        if self.unit == 'boxes':
+            units_per_box = getattr(self.medicine, 'units_per_box', 1)
+            self.total_price = self.quantity * units_per_box * self.unit_price
+        else:
+            self.total_price = self.quantity * self.unit_price
         super().save(*args, **kwargs)
 
 
@@ -208,6 +213,34 @@ class OrderStatusHistory(models.Model):
     
     def __str__(self):
         return f"Order {self.order.order_number}: {self.old_status} -> {self.new_status}"
+
+
+class PaymentSubmission(models.Model):
+    """
+    Track manual payment submissions separately to allow rejection/resubmission
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('rejected', 'Rejected'),
+        ('verified', 'Verified'),
+    ]
+    
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='payment_submissions')
+    payment_reference = models.CharField(max_length=100)
+    payment_date = models.DateField()
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    submitted_by = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='payment_submissions')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    reviewed_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_payments')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True, help_text='Reason for rejection if applicable')
+    
+    class Meta:
+        ordering = ['-submitted_at']
+    
+    def __str__(self):
+        return f"Payment Submission {self.payment_reference} for Order {self.order.order_number} - {self.get_status_display()}"
 
 
 class Cart(models.Model):
@@ -247,4 +280,6 @@ class CartItem(models.Model):
     
     @property
     def total_price(self):
-        return self.quantity * self.medicine.unit_price
+        # Quantity is in boxes, so multiply by units_per_box to get total units, then by unit_price
+        units_per_box = getattr(self.medicine, 'units_per_box', 1)
+        return self.quantity * units_per_box * self.medicine.unit_price

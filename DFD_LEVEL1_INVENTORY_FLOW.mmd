@@ -1,0 +1,74 @@
+%% =============================================================================
+%% INVENTORY DATA FLOW — Simple description (human-friendly)
+%% =============================================================================
+%%
+%% What this diagram shows:
+%%
+%%   Pharmacists and admins keep the medicine catalog up to date. They add or
+%%   edit medicines, assign categories and manufacturers, and record when stock
+%%   comes in or goes out. The system stores all of that: the list of medicines,
+%%   every stock movement, and categories and manufacturers. When stock gets low,
+%%   the system creates reorder alerts and shows them to the pharmacist so they
+%%   know what to order.
+%%
+%%   Sales reps don’t change inventory. They only look up the catalog — what
+%%   medicines exist, categories, etc. — so they can show products to customers
+%%   and add items to orders. So the flow is: pharmacist manages and sees
+%%   everything; sales rep only sees the catalog.
+%%
+%% =============================================================================
+
+flowchart TD
+    %% Level 1 DFD - Inventory Data Flow Only
+    %% Simple view: external entities, processes, data stores
+    %% Based on DATA_FLOW_DIAGRAM.md Process 4.0 Inventory Management
+
+    PA[Pharmacist/Admin]
+    SR[Sales Representative]
+
+    P1[1.0 Manage Medicine Catalog]
+    P2[2.0 Track Stock]
+    P3[3.0 Generate Reorder Alerts]
+
+    D1[(D1: Medicine)]
+    D2[(D2: Stock Movement)]
+    D3[(D3: Reorder Alert)]
+    D4[(D4: Category)]
+    D5[(D5: Manufacturer)]
+
+    %% Pharmacist: catalog and stock
+    PA -->|Medicine info| P1
+    PA -->|Stock movement| P2
+    P1 -->|Medicine data| D1
+    P1 -->|Categories| D4
+    P1 -->|Manufacturers| D5
+    D1 -->|Medicine data| P1
+    D4 -->|Categories| P1
+    D5 -->|Manufacturers| P1
+    P2 -->|Movement records| D2
+    D2 -->|Movements| P2
+    D1 -->|Stock levels| P2
+    P2 -->|Updated stock| D1
+
+    %% Reorder alerts
+    D1 -->|Low stock| P3
+    P3 -->|Alerts| D3
+    D3 -->|Alerts| PA
+    P3 -->|Reorder alerts| PA
+
+    %% Pharmacist: reports
+    PA -->|Inventory query| P1
+    P1 -->|Inventory report| PA
+    P2 -->|Stock status| PA
+
+    %% Sales Rep: browse catalog only
+    SR -->|Medicine query| P1
+    P1 -->|Medicine catalog| SR
+    D1 -->|Catalog| P1
+
+    classDef entity fill:#e1f5ff,stroke:#0066cc
+    classDef process fill:#fff4e1,stroke:#ff6600
+    classDef store fill:#e1ffe1,stroke:#00cc00
+    class PA,SR entity
+    class P1,P2,P3 process
+    class D1,D2,D3,D4,D5 store

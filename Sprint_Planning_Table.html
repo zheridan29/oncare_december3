@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprint Planning Table - OnCare Medicine Ordering System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 11px;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border: 1px solid #2980b9;
+        }
+        td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            vertical-align: top;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .sprint-number {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .status-completed {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .status-in-progress {
+            color: #f39c12;
+            font-weight: bold;
+        }
+        .status-pending {
+            color: #7f8c8d;
+            font-weight: bold;
+        }
+        ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+        li {
+            margin: 3px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sprint Planning Table<br>OnCare Medicine Ordering System</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Sprint</th>
+                    <th style="width: 15%;">Sprint Objectives</th>
+                    <th style="width: 40%;">Task / Deliverables</th>
+                    <th style="width: 20%;">Participants</th>
+                    <th style="width: 10%;">Days Allotted</th>
+                    <th style="width: 7%;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="sprint-number">Sprint 1</td>
+                    <td>Foundation & User Management</td>
+                    <td>
+                        <ul>
+                            <li>Set up Django project structure</li>
+                            <li>Implement user authentication system</li>
+                            <li>Create role-based access control (Sales Rep, Pharmacist, Admin)</li>
+                            <li>Design and implement user registration/login pages</li>
+                            <li>Create basic dashboard templates</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Backend Developer, Frontend Developer</td>
+                    <td>10 days</td>
+                    <td class="status-completed">Completed</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 2</td>
+                    <td>Inventory Management Module</td>
+                    <td>
+                        <ul>
+                            <li>Design Medicine model with categories and manufacturers</li>
+                            <li>Implement medicine CRUD operations</li>
+                            <li>Create inventory dashboard for pharmacists</li>
+                            <li>Develop stock management system</li>
+                            <li>Implement low stock alerts and reorder points</li>
+                            <li>Create medicine catalog with search and filtering</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Backend Developer, Frontend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-completed">Completed</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 3</td>
+                    <td>Order Management & Cart System</td>
+                    <td>
+                        <ul>
+                            <li>Implement shopping cart functionality</li>
+                            <li>Create order creation workflow for sales representatives</li>
+                            <li>Design Order and OrderItem models</li>
+                            <li>Implement order listing and detail views</li>
+                            <li>Develop order status tracking system</li>
+                            <li>Create order history with timeline view</li>
+                            <li>Implement units_per_box calculation for pricing</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Backend Developer, Frontend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-completed">Completed</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 4</td>
+                    <td>Payment Processing & Verification</td>
+                    <td>
+                        <ul>
+                            <li>Design PaymentSubmission model</li>
+                            <li>Implement manual payment submission flow</li>
+                            <li>Create payment verification interface for pharmacists</li>
+                            <li>Develop payment rejection mechanism with feedback</li>
+                            <li>Implement FileUpload for payment receipts</li>
+                            <li>Create payment status tracking in order workflow</li>
+                            <li>Ensure single pending payment submission per order</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Backend Developer, Frontend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-completed">Completed</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 5</td>
+                    <td>Prescription Management</td>
+                    <td>
+                        <ul>
+                            <li>Implement prescription upload functionality</li>
+                            <li>Create prescription verification workflow</li>
+                            <li>Design FileUpload model for prescription documents</li>
+                            <li>Develop prescription validation rules</li>
+                            <li>Integrate prescription requirement checks in order process</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Backend Developer, Frontend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-completed">Completed</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 6</td>
+                    <td>Notification System & Real-time Updates</td>
+                    <td>
+                        <ul>
+                            <li>Design Notification model and service</li>
+                            <li>Implement real-time notification widget</li>
+                            <li>Create notification routing based on user roles</li>
+                            <li>Develop action URL transformation for different user views</li>
+                            <li>Implement notification read/unread tracking</li>
+                            <li>Create notification filters for order-related events</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Backend Developer, Frontend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-completed">Completed</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 7</td>
+                    <td>ARIMA Forecasting & Analytics</td>
+                    <td>
+                        <ul>
+                            <li>Implement ARIMA model integration with pmdarima</li>
+                            <li>Create data collection and preprocessing pipeline</li>
+                            <li>Develop 6-step ARIMA process (Stationarity, Decomposition, Model Selection, Training, Forecasting, Evaluation)</li>
+                            <li>Design analytics dashboard with Chart.js visualizations</li>
+                            <li>Implement forecast generation and model evaluation metrics (AIC, BIC, RMSE, MAE, MAPE)</li>
+                            <li>Create demand prediction views and export functionality</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Data Scientist, Backend Developer, Frontend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-completed">Completed</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 8</td>
+                    <td>Order Status Workflow & History</td>
+                    <td>
+                        <ul>
+                            <li>Implement OrderStatusHistory model for complete audit trail</li>
+                            <li>Create status history timeline display</li>
+                            <li>Develop status transition rules and validations</li>
+                            <li>Implement payment status dependencies (e.g., "Delivered" requires "Paid")</li>
+                            <li>Create order status update forms with conditional field visibility</li>
+                            <li>Develop status history filtering and display logic</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Backend Developer, Frontend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-completed">Completed</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 9</td>
+                    <td>Dashboard Enhancement & Reporting</td>
+                    <td>
+                        <ul>
+                            <li>Enhance sales representative dashboard with Processing/Ready for Pickup metrics</li>
+                            <li>Improve pharmacist order fulfillment dashboard</li>
+                            <li>Create admin system monitoring dashboard</li>
+                            <li>Implement real-time cart count badge updates</li>
+                            <li>Develop order statistics and analytics widgets</li>
+                            <li>Create export functionality for reports</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Backend Developer, Frontend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-completed">Completed</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 10</td>
+                    <td>Deployment & Infrastructure</td>
+                    <td>
+                        <ul>
+                            <li>Configure Render deployment with render.yaml</li>
+                            <li>Create build.sh script with dependency management</li>
+                            <li>Set up production database (MariaDB/PostgreSQL)</li>
+                            <li>Implement logging system with proper directory creation</li>
+                            <li>Configure Gunicorn for WSGI serving</li>
+                            <li>Set up static file collection and media handling</li>
+                            <li>Resolve pmdarima build dependencies (numpy, scipy versioning)</li>
+                            <li>Configure timezone settings (Asia/Singapore)</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, DevOps Engineer, Backend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-completed">Completed</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 11</td>
+                    <td>Testing & Quality Assurance</td>
+                    <td>
+                        <ul>
+                            <li>Write unit tests for core models (Order, Medicine, PaymentSubmission)</li>
+                            <li>Create integration tests for order workflow</li>
+                            <li>Develop payment processing test cases</li>
+                            <li>Test ARIMA forecasting with sample data</li>
+                            <li>Perform security testing for role-based access</li>
+                            <li>Conduct end-to-end testing of complete order lifecycle</li>
+                            <li>Perform load testing for concurrent users</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, QA Tester, Backend Developer, Frontend Developer</td>
+                    <td>10 days</td>
+                    <td class="status-in-progress">In Progress</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 12</td>
+                    <td>Documentation & Training</td>
+                    <td>
+                        <ul>
+                            <li>Complete system documentation (API, user guides)</li>
+                            <li>Create deployment guide and troubleshooting documentation</li>
+                            <li>Develop user training materials for each role</li>
+                            <li>Document ARIMA forecasting process and interpretation</li>
+                            <li>Create system architecture diagrams</li>
+                            <li>Prepare handover documentation</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Technical Writer, Backend Developer, Frontend Developer</td>
+                    <td>10 days</td>
+                    <td class="status-pending">Pending</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 13</td>
+                    <td>Performance Optimization</td>
+                    <td>
+                        <ul>
+                            <li>Optimize database queries with select_related and prefetch_related</li>
+                            <li>Implement caching strategy with Redis</li>
+                            <li>Optimize ARIMA model execution time</li>
+                            <li>Improve frontend rendering performance</li>
+                            <li>Reduce page load times</li>
+                            <li>Optimize static file delivery</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Backend Developer, Frontend Developer, DevOps Engineer</td>
+                    <td>10 days</td>
+                    <td class="status-pending">Pending</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 14</td>
+                    <td>Security Hardening & Compliance</td>
+                    <td>
+                        <ul>
+                            <li>Conduct security audit and vulnerability assessment</li>
+                            <li>Implement HIPAA compliance measures</li>
+                            <li>Add GDPR compliance features (data export, deletion)</li>
+                            <li>Enhance audit logging system</li>
+                            <li>Implement rate limiting for API endpoints</li>
+                            <li>Add CSRF protection enhancements</li>
+                            <li>Conduct penetration testing</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Security Specialist, Backend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-pending">Pending</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 15</td>
+                    <td>Mobile Responsiveness & UX Enhancement</td>
+                    <td>
+                        <ul>
+                            <li>Improve mobile responsiveness across all views</li>
+                            <li>Enhance UI/UX based on user feedback</li>
+                            <li>Implement responsive dashboard layouts</li>
+                            <li>Optimize forms for mobile input</li>
+                            <li>Add progressive web app features</li>
+                            <li>Conduct usability testing with end users</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, UX Designer, Frontend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-pending">Pending</td>
+                </tr>
+                <tr>
+                    <td class="sprint-number">Sprint 16</td>
+                    <td>Advanced Analytics & Reporting</td>
+                    <td>
+                        <ul>
+                            <li>Implement advanced forecasting models (beyond ARIMA)</li>
+                            <li>Create automated report generation</li>
+                            <li>Develop custom analytics dashboards</li>
+                            <li>Implement predictive inventory management</li>
+                            <li>Add sales trend analysis</li>
+                            <li>Create financial reporting features</li>
+                        </ul>
+                    </td>
+                    <td>Product Owner, Scrum Master, Data Scientist, Backend Developer, Frontend Developer, QA Tester</td>
+                    <td>10 days</td>
+                    <td class="status-pending">Pending</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
+

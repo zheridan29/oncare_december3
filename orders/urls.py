@@ -52,4 +52,5 @@ urlpatterns = [
     
     # Payment details page (Pharmacist/Admin)
     path('pharmacist/orders/<int:pk>/payment-details/', views.PaymentDetailsView.as_view(), name='payment_details'),
+    path('pharmacist/orders/<int:order_id>/payment-submission/<int:submission_id>/reject/', views.RejectPaymentSubmissionView.as_view(), name='reject_payment_submission'),
 ]

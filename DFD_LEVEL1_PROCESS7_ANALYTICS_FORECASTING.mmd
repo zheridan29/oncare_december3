@@ -1,0 +1,99 @@
+flowchart TD
+    %% DFD Level 1: Process 7.0 - Analytics & Forecasting
+    %% Shows decomposition of Analytics & Forecasting into sub-processes
+    
+    %% External Entities
+    PA[Pharmacist/Admin]
+    SA[System Admin]
+    
+    %% Data Source Stores
+    D4[(D4: Order Database<br/>Historical Orders)]
+    D9[(D9: Medicine Database<br/>Inventory Data)]
+    D7[(D7: Transaction Database<br/>Payment Data)]
+    
+    %% Sub-Processes
+    P7_1[7.1 Collect Historical Data<br/>Data Aggregation]
+    P7_2[7.2 Run ARIMA Forecasting<br/>Demand Prediction]
+    P7_3[7.3 Generate Analytics Reports<br/>Business Intelligence]
+    P7_4[7.4 Calculate Inventory Optimization<br/>EOQ & Reorder Points]
+    
+    %% Output Data Stores
+    D15[(D15: Forecast Database<br/>Demand Forecasts)]
+    D16[(D16: Analytics Database<br/>Reports & Metrics)]
+    
+    %% External Entity to Process Flows
+    PA -->|Forecast Request| P7_2
+    PA -->|Report Request| P7_3
+    PA -->|Optimization Request| P7_4
+    SA -->|Analytics Queries| P7_3
+    SA -->|System Reports| P7_3
+    
+    %% Data Source to Process Flows
+    D4 -->|Historical Order Data| P7_1
+    D9 -->|Inventory Data| P7_1
+    D7 -->|Transaction Data| P7_1
+    
+    %% Process to Data Store Flows
+    P7_1 -->|Aggregated Data| P7_2
+    P7_1 -->|Aggregated Data| P7_3
+    P7_1 -->|Aggregated Data| P7_4
+    D4 -->|Order History| P7_1
+    D9 -->|Stock History| P7_1
+    D7 -->|Payment History| P7_1
+    
+    P7_2 -->|Store Forecast| D15
+    P7_2 -->|Read Historical| D4
+    P7_2 -->|Read Inventory| D9
+    D15 -->|Forecast Data| P7_2
+    D4 -->|Time Series Data| P7_2
+    D9 -->|Medicine Info| P7_2
+    
+    P7_3 -->|Store Reports| D16
+    P7_3 -->|Read Historical| D4
+    P7_3 -->|Read Transactions| D7
+    P7_3 -->|Read Forecasts| D15
+    D16 -->|Report Data| P7_3
+    D4 -->|Order Data| P7_3
+    D7 -->|Transaction Data| P7_3
+    D15 -->|Forecast Data| P7_3
+    
+    P7_4 -->|Store Optimization| D16
+    P7_4 -->|Read Forecasts| D15
+    P7_4 -->|Read Inventory| D9
+    P7_4 -->|Update Reorder Points| D9
+    D15 -->|Forecast Data| P7_4
+    D9 -->|Current Stock| P7_4
+    D16 -->|Optimization Data| P7_4
+    
+    %% Process to Process Flows
+    P7_1 -->|Data Ready| P7_2
+    P7_1 -->|Data Ready| P7_3
+    P7_2 -->|Forecast Ready| P7_3
+    P7_2 -->|Forecast Ready| P7_4
+    P7_3 -->|Reports Generated| P7_4
+    
+    %% Process to External Entity Flows
+    P7_2 -->|Forecast Results| PA
+    P7_2 -->|Forecast Metrics| PA
+    P7_2 -->|ARIMA Parameters| PA
+    
+    P7_3 -->|Analytics Reports| PA
+    P7_3 -->|Sales Reports| PA
+    P7_3 -->|Analytics Reports| SA
+    P7_3 -->|System Reports| SA
+    
+    P7_4 -->|EOQ Recommendations| PA
+    P7_4 -->|Reorder Points| PA
+    P7_4 -->|Optimization Metrics| PA
+    
+    %% Styling
+    classDef externalEntity fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef process fill:#ffcccc,stroke:#cc0000,stroke-width:2px
+    classDef dataStore fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+    classDef dataSource fill:#ffe1e1,stroke:#cc0000,stroke-width:2px
+    
+    class PA,SA externalEntity
+    class P7_1,P7_2,P7_3,P7_4 process
+    class D4,D9,D7 dataSource
+    class D15,D16 dataStore
+

@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
-from .models import Order, OrderItem, OrderStatusHistory, Cart, CartItem
+from .models import Order, OrderItem, OrderStatusHistory, Cart, CartItem, PaymentSubmission
 from .forms import OrderForm, OrderWithItemsForm, OrderStatusUpdateForm, PrescriptionUploadForm, PrescriptionVerifyForm, OrderCancelForm, CartAddForm, ManualPaymentForm
 
 
@@ -36,7 +36,8 @@ class OrderDashboardView(LoginRequiredMixin, TemplateView):
         # Get order statistics
         total_orders = Order.objects.filter(sales_rep=user).count()
         pending_orders = Order.objects.filter(sales_rep=user, status='pending').count()
-        completed_orders = Order.objects.filter(sales_rep=user, status='delivered').count()
+        processing_orders = Order.objects.filter(sales_rep=user, status='processing').count()
+        ready_orders = Order.objects.filter(sales_rep=user, status='ready_for_pickup').count()
         
         # Get cart information
         cart, created = Cart.objects.get_or_create(sales_rep=user)
@@ -51,7 +52,8 @@ class OrderDashboardView(LoginRequiredMixin, TemplateView):
             'recent_orders': recent_orders,
             'total_orders': total_orders,
             'pending_orders': pending_orders,
-            'completed_orders': completed_orders,
+            'processing_orders': processing_orders,
+            'ready_orders': ready_orders,
             'cart_items': cart_items,
             'cart_total': cart.total_amount,
             'notifications': notifications,
@@ -269,7 +271,13 @@ class OrderCreateView(LoginRequiredMixin, CreateView):
                     messages.error(self.request, f'Insufficient stock for {medicine.name}. Available: {medicine.current_stock}, Requested: {quantity}')
                     return self.form_invalid(form)
                 
-                item_total = medicine.unit_price * quantity
+                # Calculate item total: when unit is 'boxes', multiply by units_per_box
+                if unit == 'boxes':
+                    units_per_box = getattr(medicine, 'units_per_box', 1)
+                    item_total = medicine.unit_price * quantity * units_per_box
+                else:
+                    item_total = medicine.unit_price * quantity
+                
                 subtotal += item_total
                 medicines_data.append({
                     'medicine': medicine,
@@ -358,6 +366,19 @@ class OrderDetailView(LoginRequiredMixin, DetailView):
             from .payment_utils import get_payment_context
             payment_context = get_payment_context(self.object)
             context.update(payment_context)
+            
+            # Check for pending payment submissions
+            pending_submission = PaymentSubmission.objects.filter(
+                order=self.object,
+                status='pending'
+            ).order_by('-submitted_at').first()
+            context['pending_payment_submission'] = pending_submission
+            context['has_pending_payment_submission'] = pending_submission is not None
+            
+            # Get transaction history
+            from transactions.models import Transaction
+            transactions = Transaction.objects.filter(order=self.object).order_by('-created_at')
+            context['transactions'] = transactions
             
             # Get active payment gateway for public key (if available)
             try:
@@ -720,6 +741,7 @@ class CartAPIView(APIView):
         cart, created = Cart.objects.get_or_create(sales_rep=request.user)
         items_data = []
         for item in cart.items.select_related('medicine').all():
+            units_per_box = getattr(item.medicine, 'units_per_box', 1)
             items_data.append({
                 'id': item.id,
                 'medicine': {
@@ -727,6 +749,7 @@ class CartAPIView(APIView):
                     'name': item.medicine.name,
                     'strength': item.medicine.strength,
                     'unit_price': float(item.medicine.unit_price),
+                    'units_per_box': units_per_box,
                 },
                 'quantity': item.quantity,
                 'total_price': float(item.total_price),
@@ -734,8 +757,8 @@ class CartAPIView(APIView):
         
         return Response({
             'items': items_data,
-            'total_amount': float(cart.total_amount),
-            'total_items': cart.total_items,
+            'total': float(cart.total_amount),
+            'total_items': cart.total_items,  # Add this line
         })
 
 
@@ -903,6 +926,7 @@ class PharmacistOrderDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailV
         # Get payment context
         from transactions.models import Transaction, PaymentGateway
         from transactions.services import PaymentGatewayFactory
+        from .models import PaymentSubmission
         
         # Get related transactions
         transactions = Transaction.objects.filter(order=order).order_by('-created_at')
@@ -924,10 +948,12 @@ class PharmacistOrderDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailV
         
         context['gateway_transaction'] = gateway_transaction
         
-        # Check for manual payment submissions (from internal notes)
-        context['has_manual_payment_submission'] = bool(
-            order.internal_notes and 'Manual Payment Submitted' in order.internal_notes
-        )
+        # Payment submissions (manual) - including pending/rejected/verified
+        payment_submissions = PaymentSubmission.objects.filter(order=order).order_by('-submitted_at')
+        context['payment_submissions'] = payment_submissions
+        context['pending_payment_submissions'] = payment_submissions.filter(status='pending')
+        context['has_pending_payment_submission'] = payment_submissions.filter(status='pending').exists()
+        context['latest_pending_payment_submission'] = payment_submissions.filter(status='pending').first()
         
         # Get payment proof files (FileUpload objects linked to this order)
         from common.models import FileUpload
@@ -1415,27 +1441,28 @@ class ManualPaymentSubmitView(LoginRequiredMixin, View):
             messages.info(request, 'This order has already been paid.')
             return redirect('orders:order_detail', pk=order.pk)
         
+        # Check if there's already a pending payment submission
+        pending_submission = PaymentSubmission.objects.filter(
+            order=order,
+            status='pending'
+        ).first()
+        
+        if pending_submission:
+            messages.error(request, f'You already have a pending payment submission (Reference: {pending_submission.payment_reference}). Please wait for admin review or resubmit only after the current submission is rejected.')
+            return redirect('orders:order_detail', pk=order.pk)
+        
         form = ManualPaymentForm(request.POST, request.FILES)
         
         if form.is_valid():
-            # Store payment information in order notes
-            payment_ref = form.cleaned_data['payment_reference']
-            payment_date = form.cleaned_data['payment_date']
-            notes = form.cleaned_data.get('notes', '')
-            
-            payment_info = f"Manual Payment Submitted:\n"
-            payment_info += f"Reference: {payment_ref}\n"
-            payment_info += f"Date: {payment_date}\n"
-            if notes:
-                payment_info += f"Notes: {notes}\n"
-            payment_info += f"Submitted by: {request.user.get_full_name() or request.user.username}\n"
-            payment_info += f"Submitted at: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            
-            # Update order internal notes
-            if order.internal_notes:
-                order.internal_notes += f"\n\n{payment_info}"
-            else:
-                order.internal_notes = payment_info
+            # Create PaymentSubmission record
+            payment_submission = PaymentSubmission.objects.create(
+                order=order,
+                payment_reference=form.cleaned_data['payment_reference'],
+                payment_date=form.cleaned_data['payment_date'],
+                notes=form.cleaned_data.get('notes', ''),
+                status='pending',
+                submitted_by=request.user
+            )
             
             # Handle payment proof file upload if provided
             if 'payment_proof' in request.FILES:
@@ -1448,10 +1475,20 @@ class ManualPaymentSubmitView(LoginRequiredMixin, View):
                     file_size=proof_file.size,
                     mime_type=proof_file.content_type,
                     uploaded_by=request.user,
-                    content_object=order
+                    content_object=payment_submission  # Link to payment submission instead of order
                 )
             
-            order.save()
+            # Create status history entry for payment submission
+            from .models import OrderStatusHistory
+            OrderStatusHistory.objects.create(
+                order=order,
+                old_status=order.status,
+                new_status=order.status,
+                old_payment_status=order.payment_status,
+                new_payment_status=order.payment_status,
+                notes=f'Manual payment information submitted. Reference: {payment_submission.payment_reference}, Date: {payment_submission.payment_date}. {payment_submission.notes if payment_submission.notes else ""}',
+                changed_by=request.user
+            )
             
             # Send notification to admin
             from common.services import NotificationService
@@ -1463,9 +1500,9 @@ class ManualPaymentSubmitView(LoginRequiredMixin, View):
                     user=admin,
                     notification_type='payment_confirmation',
                     title=f'Manual Payment Submitted - Order {order.order_number}',
-                    message=f'Sales rep {order.sales_rep.get_full_name() if order.sales_rep else "N/A"} submitted manual payment proof for order {order.order_number}. Reference: {payment_ref}',
+                    message=f'Sales rep {order.sales_rep.get_full_name() if order.sales_rep else "N/A"} submitted manual payment proof for order {order.order_number}. Reference: {payment_submission.payment_reference}',
                     priority='high',
-                    action_url=reverse('orders:order_status_update', args=[order.pk])
+                    action_url=reverse('orders:payment_details', args=[order.pk])
                 )
             
             messages.success(request, 'Payment information submitted successfully. An admin will verify and update the payment status.')
@@ -1566,18 +1603,30 @@ class VerifyManualPaymentView(LoginRequiredMixin, UserPassesTestMixin, View):
         return self.request.user.is_pharmacist_admin or self.request.user.is_admin
     
     def post(self, request, order_id):
-        """Verify manual payment and update order status"""
+        """Verify manual payment"""
         order = get_object_or_404(Order, pk=order_id)
         
-        # Check if payment is already paid
-        if order.payment_status == 'paid':
-            messages.info(request, 'This order has already been paid.')
+        # Get the latest pending payment submission
+        from .models import PaymentSubmission
+        pending_submission = PaymentSubmission.objects.filter(
+            order=order,
+            status='pending'
+        ).order_by('-submitted_at').first()
+        
+        if not pending_submission:
+            messages.error(request, 'No pending payment submission found for this order.')
             return redirect('orders:pharmacist_order_detail', pk=order.pk)
         
         # Verify payment
         old_payment_status = order.payment_status
         order.payment_status = 'paid'
         order.save()
+        
+        # Mark submission as verified
+        pending_submission.status = 'verified'
+        pending_submission.reviewed_by = request.user
+        pending_submission.reviewed_at = timezone.now()
+        pending_submission.save()
         
         # Create transaction record for manual payment
         from transactions.models import Transaction, PaymentMethod
@@ -1601,7 +1650,7 @@ class VerifyManualPaymentView(LoginRequiredMixin, UserPassesTestMixin, View):
                 amount=order.total_amount,
                 net_amount=order.total_amount,
                 completed_at=timezone.now(),
-                notes=f'Manual payment verified by {request.user.get_full_name() or request.user.username}'
+                notes=f'Manual payment verified by {request.user.get_full_name() or request.user.username}. Reference: {pending_submission.payment_reference}'
             )
         except Exception as e:
             import logging
@@ -1616,21 +1665,9 @@ class VerifyManualPaymentView(LoginRequiredMixin, UserPassesTestMixin, View):
             new_status=order.status,
             old_payment_status=old_payment_status,
             new_payment_status='paid',
-            notes=f'Manual payment verified by {request.user.get_full_name() or request.user.username}',
+            notes=f'Manual payment verified by {request.user.get_full_name() or request.user.username}. Reference: {pending_submission.payment_reference}',
             changed_by=request.user
         )
-        
-        # Send notification to sales rep
-        from common.services import NotificationService
-        if order.sales_rep:
-            NotificationService.create_notification(
-                user=order.sales_rep,
-                notification_type='payment_confirmation',
-                title=f'Payment Verified - Order {order.order_number}',
-                message=f'Your manual payment of ₱{order.total_amount} has been verified for order {order.order_number}.',
-                priority='high',
-                action_url=reverse('orders:order_detail', args=[order.pk])
-            )
         
         messages.success(request, f'Manual payment verified successfully. Order payment status updated to "Paid".')
         return redirect('orders:pharmacist_order_detail', pk=order.pk)
@@ -1673,19 +1710,73 @@ class PaymentDetailsView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         
         context['gateway_transaction'] = gateway_transaction
         
-        # Check for manual payment submissions (from internal notes)
-        context['has_manual_payment_submission'] = bool(
-            order.internal_notes and 'Manual Payment Submitted' in order.internal_notes
-        )
+        # Get all payment submissions (including rejected ones)
+        from .models import PaymentSubmission
+        payment_submissions = PaymentSubmission.objects.filter(order=order).order_by('-submitted_at')
+        context['payment_submissions'] = payment_submissions
+        context['pending_submissions'] = payment_submissions.filter(status='pending')
+        context['has_pending_submission'] = payment_submissions.filter(status='pending').exists()
         
-        # Get payment proof files
-        order_content_type = ContentType.objects.get_for_model(Order)
+        # Get payment proof files linked to submissions
+        order_content_type = ContentType.objects.get_for_model(PaymentSubmission)
         payment_proof_files = FileUpload.objects.filter(
             content_type=order_content_type,
-            object_id=order.id,
+            object_id__in=payment_submissions.values_list('id', flat=True),
             file_type='invoice'
         ).order_by('-uploaded_at')
         
         context['payment_proof_files'] = payment_proof_files
         
         return context
+
+
+class RejectPaymentSubmissionView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Reject a payment submission"""
+    
+    def test_func(self):
+        return self.request.user.is_pharmacist_admin or self.request.user.is_admin
+    
+    def post(self, request, order_id, submission_id):
+        """Reject a payment submission"""
+        order = get_object_or_404(Order, pk=order_id)
+        submission = get_object_or_404(PaymentSubmission, pk=submission_id, order=order)
+        
+        if submission.status != 'pending':
+            messages.error(request, 'Only pending submissions can be rejected.')
+            return redirect('orders:payment_details', pk=order.pk)
+        
+        rejection_reason = request.POST.get('rejection_reason', '')
+        
+        # Update submission status
+        submission.status = 'rejected'
+        submission.reviewed_by = request.user
+        submission.reviewed_at = timezone.now()
+        submission.rejection_reason = rejection_reason
+        submission.save()
+        
+        # Create status history entry
+        from .models import OrderStatusHistory
+        OrderStatusHistory.objects.create(
+            order=order,
+            old_status=order.status,
+            new_status=order.status,
+            old_payment_status=order.payment_status,
+            new_payment_status=order.payment_status,
+            notes=f'Payment submission rejected. Reference: {submission.payment_reference}. Reason: {rejection_reason if rejection_reason else "No reason provided"}',
+            changed_by=request.user
+        )
+        
+        # Send notification to sales rep
+        if order.sales_rep:
+            from common.services import NotificationService
+            NotificationService.create_notification(
+                user=order.sales_rep,
+                notification_type='payment_rejection',
+                title=f'Payment Submission Rejected - Order {order.order_number}',
+                message=f'Your payment submission (Reference: {submission.payment_reference}) has been rejected. Reason: {rejection_reason if rejection_reason else "Please review and resubmit with correct information"}.',
+                priority='high',
+                action_url=reverse('orders:order_detail', args=[order.pk])
+            )
+        
+        messages.success(request, f'Payment submission rejected. Sales representative has been notified and can resubmit.')
+        return redirect('orders:payment_details', pk=order.pk)

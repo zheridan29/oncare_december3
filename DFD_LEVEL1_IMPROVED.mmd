@@ -1,0 +1,133 @@
+flowchart TD
+    %% Level 1 DFD - Improved version based on food ordering system examples
+    %% Following best practices: verb phrases for processes, nouns for data stores
+    %% 5-7 processes are manageable
+    
+    %% External Entities
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    SA[System Admin]
+    EPG[External Payment Gateway]
+    
+    %% Major Processes (using verb phrases)
+    P1[1.0 Manage Users<br/>Authenticate & Authorize]
+    P2[2.0 Process Orders<br/>Create & Fulfill Orders]
+    P3[3.0 Process Payments<br/>Verify & Record Payments]
+    P4[4.0 Manage Inventory<br/>Track Stock & Catalog]
+    P5[5.0 Generate Reports<br/>Analytics & Forecasting]
+    
+    %% Data Stores (using nouns)
+    D1[(D1: Users)]
+    D2[(D2: Orders)]
+    D3[(D3: Payments)]
+    D4[(D4: Inventory)]
+    D5[(D5: Prescriptions)]
+    D6[(D6: Notifications)]
+    
+    %% ============================================
+    %% Process 1.0: Manage Users
+    %% ============================================
+    SR -->|Login Credentials| P1
+    PA -->|Login Credentials| P1
+    SA -->|Login Credentials| P1
+    SA -->|User Data| P1
+    
+    P1 -->|User Information| D1
+    D1 -->|User Data| P1
+    
+    P1 -->|Authentication Status| SR
+    P1 -->|Authentication Status| PA
+    P1 -->|Authentication Status| SA
+    P1 -->|User List| SA
+    
+    %% ============================================
+    %% Process 2.0: Process Orders
+    %% ============================================
+    SR -->|Order| P2
+    SR -->|Customer Information| P2
+    PA -->|Order Status Update| P2
+    
+    P2 -->|Order Data| D2
+    P2 -->|Order Status| D2
+    D2 -->|Order Information| P2
+    D4 -->|Medicine Availability| P2
+    D5 -->|Prescription Status| P2
+    
+    P2 -->|Order Confirmation| SR
+    P2 -->|Order Details| SR
+    P2 -->|Order Details| PA
+    P2 -->|Order Status| SR
+    P2 -->|Order Event| P6
+    
+    %% ============================================
+    %% Process 3.0: Process Payments
+    %% ============================================
+    SR -->|Payment Information| P3
+    SR -->|Payment Receipt| P3
+    PA -->|Payment Verification| P3
+    PA -->|Payment Rejection| P3
+    EPG -->|Payment Response| P3
+    
+    P3 -->|Payment Data| D3
+    P3 -->|Transaction Record| D3
+    D3 -->|Payment Information| P3
+    D2 -->|Order Information| P3
+    
+    P3 -->|Payment Status| SR
+    P3 -->|Payment Details| PA
+    P3 -->|Payment Request| EPG
+    P3 -->|Payment Event| P6
+    
+    %% ============================================
+    %% Process 4.0: Manage Inventory
+    %% ============================================
+    PA -->|Medicine Information| P4
+    PA -->|Stock Movement| P4
+    SR -->|Medicine Query| P4
+    
+    P4 -->|Medicine Data| D4
+    P4 -->|Stock Level| D4
+    P4 -->|Stock Movement| D4
+    D4 -->|Medicine Information| P4
+    D4 -->|Stock Information| P4
+    
+    P4 -->|Medicine Catalog| SR
+    P4 -->|Inventory Report| PA
+    P4 -->|Reorder Alert| PA
+    P4 -->|Inventory Event| P6
+    
+    %% ============================================
+    %% Process 5.0: Generate Reports
+    %% ============================================
+    PA -->|Report Request| P5
+    SA -->|Analytics Query| P5
+    
+    D2 -->|Order History| P5
+    D3 -->|Payment History| P5
+    D4 -->|Inventory History| P5
+    
+    P5 -->|Forecast Data| D4
+    P5 -->|Analytics Report| PA
+    P5 -->|System Report| SA
+    
+    %% ============================================
+    %% Process 6.0: Notification System (implicit)
+    %% ============================================
+    P2 -.->|Order Event| P6
+    P3 -.->|Payment Event| P6
+    P4 -.->|Inventory Event| P6
+    
+    P6 -->|Notification Data| D6
+    D6 -->|Notification| SR
+    D6 -->|Notification| PA
+    D6 -->|Notification| SA
+    
+    %% Styling
+    classDef externalEntity fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef process fill:#fff4e1,stroke:#ff6600,stroke-width:2px
+    classDef dataStore fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+    
+    class SR,PA,SA,EPG externalEntity
+    class P1,P2,P3,P4,P5,P6 process
+    class D1,D2,D3,D4,D5,D6 dataStore
+

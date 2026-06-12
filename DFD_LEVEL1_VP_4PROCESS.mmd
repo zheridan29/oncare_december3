@@ -1,0 +1,69 @@
+flowchart TD
+    %% Level 1 DFD - Created from Visual Paradigm guide
+    %% Reference: https://www.visual-paradigm.com/tutorials/data-flow-diagram-example-food-ordering-system.jsp
+    %%
+    %% This is "another" DFD: 4 processes (verb phrases), 3 data stores (nouns).
+    %% Adds Verify Payment and Payment data store while following VP rules.
+    %%
+    %% Rules applied:
+    %% - Process labels = verb phrases
+    %% - Data stores = nouns
+    %% - 4 processes (within 5-7 manageable)
+    %% - No data store connected to external entity
+    %% - No flow between two external entities
+    %% - All processes have inputs and outputs (no black-hole)
+    %% - Data flows represent data, not "request" or process flow
+
+    %% External Entities
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    SA[System Admin]
+    EPG[External Payment Gateway]
+
+    %% Processes (verb phrases)
+    P1[1.0 Order Medicine]
+    P2[2.0 Verify Payment]
+    P3[3.0 Generate Reports]
+    P4[4.0 Order Inventory]
+
+    %% Data Stores (nouns)
+    D1[(D1: Order)]
+    D2[(D2: Inventory)]
+    D3[(D3: Payment)]
+
+    %% ========== 1.0 Order Medicine ==========
+    SR -->|Order| P1
+    P1 -->|Order| PA
+    P1 -->|Order| D1
+    P1 -->|Inventory details| D2
+    D1 -->|Orders| P1
+    D2 -->|Inventory details| P1
+    P1 -->|Bill| SR
+
+    %% ========== 2.0 Verify Payment ==========
+    SR -->|Payment information| P2
+    P2 -->|Payment details| PA
+    P2 -->|Payment records| D3
+    D3 -->|Payment records| P2
+    P2 -->|Payment confirmation| SR
+
+    %% ========== 3.0 Generate Reports ==========
+    SA -->|Report request| P3
+    D1 -->|Orders| P3
+    D2 -->|Inventory details| P3
+    D3 -->|Payment records| P3
+    P3 -->|Reports| SA
+
+    %% ========== 4.0 Order Inventory ==========
+    SA -->|Inventory order| P4
+    P4 -->|Inventory order| EPG
+    P4 -->|Inventory details| D2
+
+    %% Styling
+    classDef externalEntity fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef process fill:#fff4e1,stroke:#ff6600,stroke-width:2px
+    classDef dataStore fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+
+    class SR,PA,SA,EPG externalEntity
+    class P1,P2,P3,P4 process
+    class D1,D2,D3 dataStore

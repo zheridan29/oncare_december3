@@ -1,0 +1,45 @@
+flowchart TD
+    %% Level 1 DFD - Order Data Flow Only
+    %% Simple view: external entities, processes, data stores
+    %% Based on DATA_FLOW_DIAGRAM.md Process 2.0 Order Processing
+
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+
+    P1[1.0 Manage Cart]
+    P2[2.0 Create Order]
+    P3[3.0 Update Order Status]
+
+    D1[(D1: Cart)]
+    D2[(D2: Order)]
+    D3[(D3: Order Status History)]
+
+    %% Sales Rep: cart and order creation
+    SR -->|Cart items| P1
+    SR -->|Customer info| P2
+    P1 -->|Cart data| D1
+    D1 -->|Cart data| P1
+    P1 -->|Cart contents| P2
+    P2 -->|Order| D2
+    P2 -->|Status history| D3
+    D2 -->|Order data| P2
+    P2 -->|Order confirmation| SR
+
+    %% Pharmacist: status updates
+    PA -->|Status update| P3
+    D2 -->|Orders| P3
+    D3 -->|History| P3
+    P3 -->|Updated order| D2
+    P3 -->|Status history| D3
+    P3 -->|Order details| PA
+
+    %% Sales Rep views orders
+    SR -->|Order query| P2
+    P2 -->|Order details| SR
+
+    classDef entity fill:#e1f5ff,stroke:#0066cc
+    classDef process fill:#fff4e1,stroke:#ff6600
+    classDef store fill:#e1ffe1,stroke:#00cc00
+    class SR,PA entity
+    class P1,P2,P3 process
+    class D1,D2,D3 store

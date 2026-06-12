@@ -1,0 +1,89 @@
+flowchart TD
+    %% DFD Level 1: Process 5.0 - Prescription Management
+    %% Shows decomposition of Prescription Management into sub-processes
+    
+    %% External Entities
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    
+    %% Sub-Processes
+    P5_1[5.1 Upload Prescription<br/>File Upload & Storage]
+    P5_2[5.2 Verify Prescription<br/>Prescription Validation]
+    P5_3[5.3 Validate Prescription Requirements<br/>Requirement Checking]
+    P5_4[5.4 Store Prescription Files<br/>File Management]
+    
+    %% Data Stores
+    D4[(D4: Order Database<br/>Orders)]
+    D8[(D8: File Upload Database<br/>Prescription Files)]
+    D9[(D9: Medicine Database<br/>Prescription Requirements)]
+    D5[(D5: Order Status History<br/>Verification Events)]
+    
+    %% External Entity to Process Flows
+    SR -->|Prescription File| P5_1
+    SR -->|Prescription Data| P5_1
+    SR -->|Order ID| P5_1
+    
+    PA -->|Verification Request| P5_2
+    PA -->|Verification Decision| P5_2
+    PA -->|Verification Notes| P5_2
+    
+    SR -->|Order Creation| P5_3
+    PA -->|Requirement Check| P5_3
+    
+    %% Process to Data Store Flows
+    P5_1 -->|Store File| D8
+    P5_1 -->|Link to Order| D4
+    P5_1 -->|Create History| D5
+    D4 -->|Order Info| P5_1
+    
+    P5_2 -->|Read File| D8
+    P5_2 -->|Update Order| D4
+    P5_2 -->|Create History| D5
+    D8 -->|File Data| P5_2
+    D4 -->|Order Info| P5_2
+    
+    P5_3 -->|Check Requirements| D9
+    P5_3 -->|Read Order| D4
+    P5_3 -->|Check Files| D8
+    D9 -->|Prescription Flag| P5_3
+    D4 -->|Order Items| P5_3
+    D8 -->|File Status| P5_3
+    
+    P5_4 -->|Store File| D8
+    P5_4 -->|Update Metadata| D8
+    P5_4 -->|Link to Order| D4
+    D8 -->|File Info| P5_4
+    D4 -->|Order Info| P5_4
+    
+    %% Process to Process Flows
+    P5_1 -->|File Uploaded| P5_4
+    P5_1 -->|File Uploaded| P5_3
+    P5_3 -->|Requirement Check| P5_2
+    P5_2 -->|Verification Complete| P5_4
+    
+    %% Process to External Entity Flows
+    P5_1 -->|Upload Confirmation| SR
+    P5_1 -->|File Stored| SR
+    
+    P5_2 -->|Verification Status| SR
+    P5_2 -->|Verification Status| PA
+    P5_2 -->|Verified| SR
+    P5_2 -->|Rejected| SR
+    
+    P5_3 -->|Requirement Status| SR
+    P5_3 -->|Requirement Status| PA
+    P5_3 -->|Prescription Required| SR
+    P5_3 -->|Prescription Not Required| SR
+    
+    P5_4 -->|File Available| SR
+    P5_4 -->|File Available| PA
+    
+    %% Styling
+    classDef externalEntity fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef process fill:#ffccff,stroke:#cc00cc,stroke-width:2px
+    classDef dataStore fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+    
+    class SR,PA externalEntity
+    class P5_1,P5_2,P5_3,P5_4 process
+    class D4,D5,D8,D9 dataStore
+

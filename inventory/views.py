@@ -129,7 +129,7 @@ class MedicineCreateView(LoginRequiredMixin, CreateView):
     template_name = 'inventory/medicine_form.html'
     fields = [
         'name', 'generic_name', 'description', 'category', 'manufacturer',
-        'dosage_form', 'strength', 'prescription_type', 'unit_price', 'cost_price',
+        'dosage_form', 'strength', 'prescription_type', 'unit_price', 'cost_price', 'units_per_box',
         'current_stock', 'minimum_stock_level', 'maximum_stock_level', 'reorder_point',
         'weight', 'dimensions', 'storage_conditions', 'ndc_number',
         'fda_approval_date', 'expiry_date', 'is_available', 'requires_prescription'
@@ -153,7 +153,7 @@ class MedicineEditView(LoginRequiredMixin, UpdateView):
     template_name = 'inventory/medicine_form.html'
     fields = [
         'name', 'generic_name', 'description', 'category', 'manufacturer',
-        'dosage_form', 'strength', 'prescription_type', 'unit_price', 'cost_price',
+        'dosage_form', 'strength', 'prescription_type', 'unit_price', 'cost_price', 'units_per_box',
         'current_stock', 'minimum_stock_level', 'maximum_stock_level', 'reorder_point',
         'weight', 'dimensions', 'storage_conditions', 'ndc_number',
         'fda_approval_date', 'expiry_date', 'is_available', 'requires_prescription'

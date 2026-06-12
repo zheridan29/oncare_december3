@@ -1,0 +1,88 @@
+flowchart TD
+    %% DFD Level 1: Process 6.0 - Notification System
+    %% Shows decomposition of Notification System into sub-processes
+    
+    %% External Entities
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    SA[System Admin]
+    
+    %% Input Processes (Event Sources)
+    P2[2.0 Order Processing]
+    P3[3.0 Payment Processing]
+    P4[4.0 Inventory Management]
+    P5[5.0 Prescription Management]
+    
+    %% Sub-Processes
+    P6_1[6.1 Generate Notifications<br/>Event to Notification]
+    P6_2[6.2 Route Notifications<br/>User-Based Routing]
+    P6_3[6.3 Track Notification Status<br/>Read/Unread Tracking]
+    P6_4[6.4 Deliver Notifications<br/>Real-time Delivery]
+    
+    %% Data Stores
+    D14[(D14: Notification Database<br/>Notifications)]
+    D1[(D1: User Database<br/>User Roles & Preferences)]
+    
+    %% Event Source to Process Flows
+    P2 -->|Order Events| P6_1
+    P3 -->|Payment Events| P6_1
+    P4 -->|Inventory Alerts| P6_1
+    P5 -->|Prescription Events| P6_1
+    
+    %% Process to Data Store Flows
+    P6_1 -->|Create Notification| D14
+    P6_1 -->|Read User Roles| D1
+    D1 -->|User Info| P6_1
+    
+    P6_2 -->|Read Notifications| D14
+    P6_2 -->|Read User Roles| D1
+    P6_2 -->|Update Routing| D14
+    D14 -->|Notification Data| P6_2
+    D1 -->|User Roles| P6_2
+    
+    P6_3 -->|Update Status| D14
+    P6_3 -->|Read Notifications| D14
+    D14 -->|Notification Status| P6_3
+    
+    P6_4 -->|Read Notifications| D14
+    P6_4 -->|Read User Info| D1
+    D14 -->|Notification Data| P6_4
+    D1 -->|User Preferences| P6_4
+    
+    %% Process to Process Flows
+    P6_1 -->|Notification Created| P6_2
+    P6_2 -->|Notification Routed| P6_3
+    P6_3 -->|Status Updated| P6_4
+    P6_4 -->|Notification Delivered| P6_3
+    
+    %% Process to External Entity Flows
+    P6_4 -->|Real-time Notification| SR
+    P6_4 -->|Real-time Notification| PA
+    P6_4 -->|Real-time Notification| SA
+    P6_4 -->|Notification Count| SR
+    P6_4 -->|Notification Count| PA
+    P6_4 -->|Notification Count| SA
+    
+    P6_3 -->|Mark as Read| SR
+    P6_3 -->|Mark as Read| PA
+    P6_3 -->|Mark as Read| SA
+    
+    %% External Entity to Process Flows
+    SR -->|Mark Read| P6_3
+    PA -->|Mark Read| P6_3
+    SA -->|Mark Read| P6_3
+    SR -->|Notification Queries| P6_4
+    PA -->|Notification Queries| P6_4
+    SA -->|Notification Queries| P6_4
+    
+    %% Styling
+    classDef externalEntity fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef process fill:#ccffff,stroke:#00cccc,stroke-width:2px
+    classDef dataStore fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+    classDef eventSource fill:#ffe1e1,stroke:#cc0000,stroke-width:2px
+    
+    class SR,PA,SA externalEntity
+    class P6_1,P6_2,P6_3,P6_4 process
+    class P2,P3,P4,P5 eventSource
+    class D1,D14 dataStore
+

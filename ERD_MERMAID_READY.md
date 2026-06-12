@@ -1,5 +1,11 @@
 # ERD Diagram - Mermaid Format (Ready to Use)
 
+## Simple description of the ERD
+
+The Entity Relationship Diagram (ERD) for the OnCare Medicine Ordering System shows how the main data in the system is stored and connected. **Users** (with role-specific profiles for Sales Rep or Pharmacist/Admin) **create orders**; each **order** contains **order items** that reference **medicines**; **medicines** belong to a **category** and a **manufacturer** and are linked to **stock movements** and **reorder alerts**. **Carts** and **cart items** hold items before checkout; **order status history** records every status change; **payment submission**, **transaction**, and **file upload** support payment verification and receipts; **notifications** store in-app alerts. The diagram makes it clear how users, orders, medicines, inventory, and payments fit together in one database so the system can support ordering, fulfillment, reporting, and auditing for Neo Care Philippines. For a longer narrative and plain-language summary, see **ERD_SIMPLE_DESCRIPTION.md**.
+
+---
+
 ## Complete ERD Diagram - All Tables
 
 Copy the code below and paste it into [Mermaid Live Editor](https://mermaid.live/) or any markdown viewer that supports Mermaid:

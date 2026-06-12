@@ -1,0 +1,108 @@
+flowchart TD
+    %% DFD Level 1: Process 3.0 - Payment Processing
+    %% Shows decomposition of Payment Processing into sub-processes
+    
+    %% External Entities
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    EPG[External Payment Gateway]
+    
+    %% Sub-Processes
+    P3_1[3.1 Submit Payment Information<br/>Manual Payment Submission]
+    P3_2[3.2 Verify Payment<br/>Payment Verification]
+    P3_3[3.3 Reject Payment Submission<br/>Payment Rejection]
+    P3_4[3.4 Process Gateway Payment<br/>Online Payment]
+    P3_5[3.5 Manage Payment Status<br/>Status Updates]
+    
+    %% Data Stores
+    D4[(D4: Order Database<br/>Orders)]
+    D6[(D6: Payment Submission<br/>Payment Records)]
+    D7[(D7: Transaction Database<br/>Transactions)]
+    D8[(D8: File Upload Database<br/>Payment Receipts)]
+    D5[(D5: Order Status History<br/>Payment Events)]
+    
+    %% External Entity to Process Flows
+    SR -->|Payment Info| P3_1
+    SR -->|Payment Receipt| P3_1
+    SR -->|Payment Reference| P3_1
+    
+    PA -->|Verification Request| P3_2
+    PA -->|Verification Decision| P3_2
+    
+    PA -->|Rejection Request| P3_3
+    PA -->|Rejection Reason| P3_3
+    
+    EPG -->|Payment Response| P3_4
+    EPG -->|Transaction Status| P3_4
+    SR -->|Gateway Payment Request| P3_4
+    
+    SR -->|Payment Queries| P3_5
+    PA -->|Payment Queries| P3_5
+    
+    %% Process to Data Store Flows
+    P3_1 -->|Create Submission| D6
+    P3_1 -->|Store Receipt| D8
+    P3_1 -->|Link to Order| D4
+    P3_1 -->|Create History| D5
+    D4 -->|Order Info| P3_1
+    D6 -->|Check Pending| P3_1
+    
+    P3_2 -->|Update Submission| D6
+    P3_2 -->|Create Transaction| D7
+    P3_2 -->|Update Order| D4
+    P3_2 -->|Create History| D5
+    D6 -->|Submission Info| P3_2
+    D4 -->|Order Info| P3_2
+    
+    P3_3 -->|Update Submission| D6
+    P3_3 -->|Store Rejection| D6
+    P3_3 -->|Create History| D5
+    D6 -->|Submission Info| P3_3
+    
+    P3_4 -->|Create Transaction| D7
+    P3_4 -->|Update Order| D4
+    P3_4 -->|Create History| D5
+    D4 -->|Order Info| P3_4
+    
+    P3_5 -->|Read Submissions| D6
+    P3_5 -->|Read Transactions| D7
+    P3_5 -->|Read Orders| D4
+    D6 -->|Submission Data| P3_5
+    D7 -->|Transaction Data| P3_5
+    D4 -->|Order Data| P3_5
+    
+    %% Process to Process Flows
+    P3_1 -->|Submission Created| P3_5
+    P3_2 -->|Payment Verified| P3_5
+    P3_3 -->|Payment Rejected| P3_5
+    P3_4 -->|Payment Processed| P3_5
+    
+    %% Process to External Entity Flows
+    P3_1 -->|Submission Confirmation| SR
+    P3_1 -->|Submission Status| SR
+    
+    P3_2 -->|Verification Status| SR
+    P3_2 -->|Verification Status| PA
+    P3_2 -->|Payment Verified| SR
+    
+    P3_3 -->|Rejection Notification| SR
+    P3_3 -->|Rejection Reason| SR
+    
+    P3_4 -->|Payment Status| SR
+    P3_4 -->|Transaction ID| SR
+    P3_4 -->|Gateway Response| EPG
+    
+    P3_5 -->|Payment Status| SR
+    P3_5 -->|Payment Details| SR
+    P3_5 -->|Payment Details| PA
+    P3_5 -->|Submission List| PA
+    
+    %% Styling
+    classDef externalEntity fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    classDef process fill:#ccccff,stroke:#0000cc,stroke-width:2px
+    classDef dataStore fill:#e1ffe1,stroke:#00cc00,stroke-width:2px
+    
+    class SR,PA,EPG externalEntity
+    class P3_1,P3_2,P3_3,P3_4,P3_5 process
+    class D4,D5,D6,D7,D8 dataStore
+

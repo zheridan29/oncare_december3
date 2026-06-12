@@ -1,0 +1,48 @@
+flowchart TD
+    %% Level 1 DFD - Payment Data Flow Only
+    %% Simple view: external entities, processes, data stores
+    %% Based on DATA_FLOW_DIAGRAM.md Process 3.0 Payment Processing
+
+    SR[Sales Representative]
+    PA[Pharmacist/Admin]
+    EPG[External Payment Gateway]
+
+    P1[1.0 Submit Payment]
+    P2[2.0 Verify Payment]
+    P3[3.0 Reject Payment]
+
+    D1[(D1: Payment Submission)]
+    D2[(D2: Transaction)]
+    D3[(D3: File Upload)]
+
+    %% Sales Rep: submit payment info
+    SR -->|Payment info| P1
+    SR -->|Payment receipt| P1
+    P1 -->|Submission| D1
+    P1 -->|Receipt file| D3
+    D1 -->|Submissions| P1
+    P1 -->|Confirmation| SR
+
+    %% Pharmacist: verify or reject
+    PA -->|Verify request| P2
+    D1 -->|Pending submissions| P2
+    P2 -->|Verified status| D1
+    P2 -->|Transaction record| D2
+    P2 -->|Verification status| SR
+    P2 -->|Verification status| PA
+
+    PA -->|Reject request| P3
+    D1 -->|Pending submissions| P3
+    P3 -->|Rejected status| D1
+    P3 -->|Rejection notice| SR
+
+    %% Gateway (optional flow)
+    EPG -->|Gateway response| P2
+    P2 -->|Payment request| EPG
+
+    classDef entity fill:#e1f5ff,stroke:#0066cc
+    classDef process fill:#fff4e1,stroke:#ff6600
+    classDef store fill:#e1ffe1,stroke:#00cc00
+    class SR,PA,EPG entity
+    class P1,P2,P3 process
+    class D1,D2,D3 store
