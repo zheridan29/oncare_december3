@@ -36,4 +36,5 @@ urlpatterns = [
     path('api/medicines/<int:pk>/', views.MedicineDetailAPIView.as_view(), name='api_medicine_detail'),
     path('api/stock-movements/', views.StockMovementAPIView.as_view(), name='api_stock_movements'),
     path('api/reorder-alerts/', views.ReorderAlertAPIView.as_view(), name='api_reorder_alerts'),
+    path('api/dashboard/', views.InventoryDashboardAPIView.as_view(), name='api_dashboard'),
 ]
