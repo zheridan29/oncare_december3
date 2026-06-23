@@ -301,8 +301,8 @@ class NotificationAPIView(LoginRequiredMixin, View):
         
         # Get latest notification timestamp for next check
         latest_notification_time = None
-        if notifications:
-            latest_notification_time = notifications[0].created_at.isoformat()
+        if notifications_data:
+            latest_notification_time = notifications_list[0].created_at.isoformat()
         elif last_check:
             latest_notification_time = last_check.isoformat()
         

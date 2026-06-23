@@ -1063,6 +1063,11 @@ class OrderFulfillmentDashboardView(LoginRequiredMixin, UserPassesTestMixin, Tem
                 'count': Order.objects.filter(status=status_code).count()
             }
         
+        # Get notifications for current user (only unread for dashboard widget)
+        from common.services import NotificationService
+        notifications = NotificationService.get_recent_notifications(self.request.user, limit=5, unread_only=True)
+        unread_notifications_count = NotificationService.get_unread_count(self.request.user)
+        
         context.update({
             'total_orders': total_orders,
             'pending_orders': pending_orders,
@@ -1071,6 +1076,8 @@ class OrderFulfillmentDashboardView(LoginRequiredMixin, UserPassesTestMixin, Tem
             'delivered_orders': delivered_orders,
             'recent_orders': recent_orders,
             'orders_by_status': orders_by_status,
+            'notifications': notifications,
+            'unread_notifications_count': unread_notifications_count,
         })
         
         return context
