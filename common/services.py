@@ -245,14 +245,16 @@ class NotificationService:
             }
             priority = priority_map.get(new_status, 'medium')
             
-            # Build action URL - try pharmacist detail first, fallback to regular detail
+            # Build role-specific action URLs.
             try:
-                action_url = reverse('orders:pharmacist_order_detail', args=[order.id])
+                sales_rep_action_url = reverse('orders:order_detail', args=[order.id])
             except:
-                try:
-                    action_url = reverse('orders:order_detail', args=[order.id])
-                except:
-                    action_url = ''
+                sales_rep_action_url = ''
+
+            try:
+                pharmacist_action_url = reverse('orders:pharmacist_order_detail', args=[order.id])
+            except:
+                pharmacist_action_url = sales_rep_action_url
             
             # Notify Sales Rep about status change
             if order.sales_rep and (changed_by_user is None or order.sales_rep.id != changed_by_user.id):
@@ -262,7 +264,7 @@ class NotificationService:
                     title=f'Order {order.order_number} Status Updated',
                     message=f'Order status changed from {old_status_display} to {new_status_display}. Customer: {order.customer_name}',
                     priority=priority,
-                    action_url=action_url,
+                    action_url=sales_rep_action_url,
                 )
             
             # Notify Pharmacist/Admin (except the one who made the change)
@@ -287,7 +289,7 @@ class NotificationService:
                         title=f'Order {order.order_number} Status: {new_status_display}',
                         message=f'Order from {order.sales_rep.get_full_name() if order.sales_rep else "System"} for {order.customer_name} is now {new_status_display}. Changed from {old_status_display}.',
                         priority=priority,
-                        action_url=action_url,
+                        action_url=pharmacist_action_url,
                     )
             
             logger.info(f"Status change notifications created for order {order.order_number}: {old_status} -> {new_status}")
@@ -326,14 +328,16 @@ class NotificationService:
             }
             priority = priority_map.get(new_status, 'medium')
             
-            # Build action URL - try pharmacist detail first, fallback to regular detail
+            # Build role-specific action URLs.
             try:
-                action_url = reverse('orders:pharmacist_order_detail', args=[order.id])
+                sales_rep_action_url = reverse('orders:order_detail', args=[order.id])
             except:
-                try:
-                    action_url = reverse('orders:order_detail', args=[order.id])
-                except:
-                    action_url = ''
+                sales_rep_action_url = ''
+
+            try:
+                pharmacist_action_url = reverse('orders:pharmacist_order_detail', args=[order.id])
+            except:
+                pharmacist_action_url = sales_rep_action_url
             
             # Notify Sales Rep about status change
             if order.sales_rep and (changed_by_user is None or order.sales_rep.id != changed_by_user.id):
@@ -343,7 +347,7 @@ class NotificationService:
                     title=f'Order {order.order_number} Status Updated',
                     message=f'Order status changed from {old_status_display} to {new_status_display}. Customer: {order.customer_name}',
                     priority=priority,
-                    action_url=action_url,
+                    action_url=sales_rep_action_url,
                 )
             
             # Notify other Pharmacist/Admin users (except the one who made the change)
@@ -366,7 +370,7 @@ class NotificationService:
                         title=f'Order {order.order_number} Status: {new_status_display}',
                         message=f'Order from {order.sales_rep.get_full_name() if order.sales_rep else "System"} for {order.customer_name} is now {new_status_display}. Changed from {old_status_display}.',
                         priority=priority,
-                        action_url=action_url,
+                        action_url=pharmacist_action_url,
                     )
             
             logger.info(f"Status change notifications created for order {order.order_number}: {old_status} -> {new_status}")
