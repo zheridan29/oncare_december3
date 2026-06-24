@@ -14,6 +14,7 @@ import sqlite3
 from pmdarima import auto_arima
 from statsmodels.tsa.stattools import acf, pacf
 from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import warnings
 
@@ -22,8 +23,8 @@ from django.utils import timezone
 from django.db import transaction, connection
 
 from .models import DemandForecast, InventoryOptimization, SalesTrend
-from inventory.models import Medicine
-from orders.models import OrderItem
+from inventory.models import Medicine, StockMovement
+from orders.models import Order, OrderItem
 from transactions.models import Transaction
 
 logger = logging.getLogger(__name__)
@@ -253,12 +254,172 @@ class ARIMAForecastingService:
         except Exception as e:
             logger.error(f"Error calculating ACF/PACF: {e}")
             return {'acf': [], 'pacf': []}
+
+    def _get_period_code(self, period_type: str) -> str:
+        period_map = {
+            'daily': 'D',
+            'weekly': 'W',
+            'monthly': 'M'
+        }
+        return period_map.get(period_type, 'W')
+
+    def _generate_future_dates(self, last_date: pd.Timestamp, forecast_horizon: int, period_type: str) -> List[pd.Timestamp]:
+        future_dates = []
+        current_date = pd.Timestamp(last_date)
+
+        for step in range(1, forecast_horizon + 1):
+            if period_type == 'daily':
+                future_dates.append(current_date + timedelta(days=step))
+            elif period_type == 'weekly':
+                future_dates.append(current_date + timedelta(weeks=step))
+            else:
+                future_dates.append(current_date + pd.DateOffset(months=step))
+
+        return future_dates
+
+    def _build_calendar_features(self, dates: List[pd.Timestamp], period_type: str) -> pd.DataFrame:
+        calendar = pd.DataFrame({'date': pd.to_datetime(dates)})
+        calendar['month'] = calendar['date'].dt.month
+        calendar['month_sin'] = np.sin(2 * np.pi * calendar['month'] / 12)
+        calendar['month_cos'] = np.cos(2 * np.pi * calendar['month'] / 12)
+        calendar['quarter'] = calendar['date'].dt.quarter
+        calendar['quarter_sin'] = np.sin(2 * np.pi * calendar['quarter'] / 4)
+        calendar['quarter_cos'] = np.cos(2 * np.pi * calendar['quarter'] / 4)
+
+        if period_type == 'daily':
+            day_of_week = calendar['date'].dt.dayofweek
+            calendar['day_of_week'] = day_of_week
+            calendar['dow_sin'] = np.sin(2 * np.pi * day_of_week / 7)
+            calendar['dow_cos'] = np.cos(2 * np.pi * day_of_week / 7)
+            calendar['is_weekend'] = (day_of_week >= 5).astype(int)
+        elif period_type == 'weekly':
+            week_of_year = calendar['date'].dt.isocalendar().week.astype(int)
+            calendar['week_of_year'] = week_of_year
+            calendar['week_sin'] = np.sin(2 * np.pi * week_of_year / 52)
+            calendar['week_cos'] = np.cos(2 * np.pi * week_of_year / 52)
+        else:
+            calendar['year'] = calendar['date'].dt.year
+            calendar['year_norm'] = calendar['year'] - calendar['year'].min()
+
+        return calendar
+
+    def _build_exogenous_features(self, medicine_id: int, sales_data: pd.DataFrame, period_type: str) -> pd.DataFrame:
+        period_code = self._get_period_code(period_type)
+        sales_dates = pd.to_datetime(sales_data['date'])
+        start_date = sales_dates.min()
+        end_date = sales_dates.max()
+
+        historical_features = self._build_calendar_features(list(sales_dates), period_type)
+
+        order_qs = Order.objects.filter(
+            items__medicine_id=medicine_id,
+            created_at__range=[start_date.to_pydatetime(), end_date.to_pydatetime()]
+        ).values('id', 'created_at', 'status', 'payment_status', 'delivery_method')
+
+        order_features = pd.DataFrame(columns=['date', 'total_orders', 'pending_rate', 'cancellation_rate', 'delivery_share'])
+        if order_qs.exists():
+            order_df = pd.DataFrame(list(order_qs))
+            order_df['created_at'] = pd.to_datetime(order_df['created_at'])
+            order_df['date'] = order_df['created_at'].dt.to_period(period_code).dt.to_timestamp()
+            order_features = order_df.groupby('date').agg(
+                total_orders=('id', 'count'),
+                pending_rate=('payment_status', lambda values: float((values == 'pending').mean())),
+                cancellation_rate=('status', lambda values: float((values == 'cancelled').mean())),
+                delivery_share=('delivery_method', lambda values: float((values == 'delivery').mean())),
+            ).reset_index()
+
+        item_qs = OrderItem.objects.filter(
+            medicine_id=medicine_id,
+            order__created_at__range=[start_date.to_pydatetime(), end_date.to_pydatetime()]
+        ).values('order__created_at', 'unit_price')
+
+        price_features = pd.DataFrame(columns=['date', 'avg_unit_price'])
+        if item_qs.exists():
+            item_df = pd.DataFrame(list(item_qs))
+            item_df['order__created_at'] = pd.to_datetime(item_df['order__created_at'])
+            item_df['date'] = item_df['order__created_at'].dt.to_period(period_code).dt.to_timestamp()
+            price_features = item_df.groupby('date').agg(
+                avg_unit_price=('unit_price', 'mean')
+            ).reset_index()
+
+        stock_qs = StockMovement.objects.filter(
+            medicine_id=medicine_id,
+            created_at__range=[start_date.to_pydatetime(), end_date.to_pydatetime()]
+        ).values('created_at', 'movement_type', 'quantity')
+
+        stock_features = pd.DataFrame(columns=['date', 'stock_out_volume'])
+        if stock_qs.exists():
+            stock_df = pd.DataFrame(list(stock_qs))
+            stock_df['created_at'] = pd.to_datetime(stock_df['created_at'])
+            stock_df['date'] = stock_df['created_at'].dt.to_period(period_code).dt.to_timestamp()
+            stock_df['stock_out_volume'] = np.where(
+                stock_df['movement_type'] == 'out',
+                np.abs(pd.to_numeric(stock_df['quantity'], errors='coerce').fillna(0)),
+                0
+            )
+            stock_features = stock_df.groupby('date').agg(
+                stock_out_volume=('stock_out_volume', 'sum')
+            ).reset_index()
+
+        merged = historical_features.copy()
+        merged['date'] = pd.to_datetime(merged['date'])
+        merged = merged.merge(order_features, on='date', how='left')
+        merged = merged.merge(price_features, on='date', how='left')
+        merged = merged.merge(stock_features, on='date', how='left')
+
+        for column in merged.columns:
+            if column == 'date':
+                continue
+            merged[column] = pd.to_numeric(merged[column], errors='coerce').fillna(0.0)
+
+        return merged.sort_values('date').reset_index(drop=True)
+
+    def _build_future_exogenous_features(self, historical_features: pd.DataFrame, feature_columns: List[str], forecast_horizon: int, period_type: str) -> pd.DataFrame:
+        if historical_features.empty:
+            return pd.DataFrame(columns=feature_columns)
+
+        last_row = historical_features.iloc[-1]
+        last_date = pd.to_datetime(last_row['date'])
+        future_dates = self._generate_future_dates(last_date, forecast_horizon, period_type)
+        future_rows = []
+
+        for future_date in future_dates:
+            row = {column: float(last_row.get(column, 0.0)) for column in feature_columns}
+            calendar_features = self._build_calendar_features([future_date], period_type).iloc[0].to_dict()
+
+            for key, value in calendar_features.items():
+                if key == 'date' or key not in row:
+                    continue
+                row[key] = float(value)
+
+            future_rows.append(row)
+
+        return pd.DataFrame(future_rows).reindex(columns=feature_columns).fillna(0.0)
+
+    def _build_model_comparison(self, arima_metrics: Dict[str, float], sarimax_metrics: Dict[str, float]) -> Dict[str, object]:
+        def improvement_percentage(baseline: float, comparison: float) -> Optional[float]:
+            if baseline in (None, 0) or not np.isfinite(baseline) or not np.isfinite(comparison):
+                return None
+            return float(((baseline - comparison) / baseline) * 100)
+
+        comparison = {
+            'arima': arima_metrics,
+            'sarimax': sarimax_metrics,
+            'recommended_model': 'sarimax' if sarimax_metrics.get('mape', float('inf')) <= arima_metrics.get('mape', float('inf')) else 'arima',
+            'improvement_pct': {
+                'rmse': improvement_percentage(arima_metrics.get('rmse', float('inf')), sarimax_metrics.get('rmse', float('inf'))),
+                'mae': improvement_percentage(arima_metrics.get('mae', float('inf')), sarimax_metrics.get('mae', float('inf'))),
+                'mape': improvement_percentage(arima_metrics.get('mape', float('inf')), sarimax_metrics.get('mape', float('inf'))),
+            }
+        }
+
+        return comparison
     
     @retry_database_operation(max_retries=3, delay=1)
     def generate_forecast(self, medicine_id: int, forecast_period: str = 'weekly', 
                          forecast_horizon: int = 4) -> DemandForecast:
         """
-        Generate demand forecast for a medicine using ARIMA
+        Generate demand forecast for a medicine using ARIMA and SARIMAX
         """
         try:
             medicine = Medicine.objects.get(id=medicine_id)
@@ -328,6 +489,114 @@ class ARIMAForecastingService:
             
             # Calculate ACF and PACF
             acf_pacf = self.calculate_acf_pacf(ts_data)
+
+            sarimax_results = {
+                'error': 'SARIMAX model not fitted'
+            }
+
+            model_comparison = {
+                'arima': {
+                    'order': {'p': p, 'd': d, 'q': q},
+                    'aic': float(fitted_model.aic),
+                    'bic': float(fitted_model.bic),
+                    'rmse': metrics['rmse'],
+                    'mae': metrics['mae'],
+                    'mape': metrics['mape'],
+                },
+                'sarimax': {},
+                'recommended_model': 'arima',
+                'improvement_pct': {}
+            }
+
+            exogenous_features = []
+
+            try:
+                historical_features = self._build_exogenous_features(medicine_id, sales_data, forecast_period)
+                feature_columns = [
+                    column for column in historical_features.columns
+                    if column != 'date' and historical_features[column].nunique(dropna=True) > 1
+                ]
+
+                if not feature_columns:
+                    feature_columns = [column for column in historical_features.columns if column != 'date']
+
+                historical_exog = historical_features[feature_columns].fillna(0.0).astype(float)
+                historical_exog.index = pd.to_datetime(historical_features['date'])
+
+                future_dates = self._generate_future_dates(
+                    pd.to_datetime(historical_features['date'].iloc[-1]),
+                    forecast_horizon,
+                    forecast_period
+                )
+                future_exog = self._build_future_exogenous_features(
+                    historical_features[['date'] + feature_columns],
+                    feature_columns,
+                    forecast_horizon,
+                    forecast_period
+                ).fillna(0.0).astype(float)
+                future_exog.index = pd.to_datetime(future_dates)
+
+                sarimax_model = SARIMAX(
+                    ts_data,
+                    exog=historical_exog,
+                    order=(p, d, q),
+                    seasonal_order=(0, 0, 0, 0),
+                    enforce_stationarity=False,
+                    enforce_invertibility=False
+                )
+                sarimax_fitted = sarimax_model.fit(disp=False, maxiter=100)
+
+                sarimax_fitted_values = sarimax_fitted.fittedvalues
+                sarimax_actual_values = ts_data.iloc[len(ts_data) - len(sarimax_fitted_values):].values
+                sarimax_metrics = self.calculate_model_metrics(sarimax_actual_values, sarimax_fitted_values.values)
+
+                sarimax_forecast_object = sarimax_fitted.get_forecast(steps=forecast_horizon, exog=future_exog)
+                sarimax_forecast = sarimax_forecast_object.predicted_mean
+                sarimax_forecast_values = [0.0 if pd.isna(value) or not np.isfinite(value) else float(value) for value in sarimax_forecast.values.tolist()]
+
+                sarimax_conf_int = sarimax_forecast_object.conf_int()
+                sarimax_results = {
+                    'order': {'p': p, 'd': d, 'q': q},
+                    'seasonal_order': {'P': 0, 'D': 0, 'Q': 0, 'm': 0},
+                    'aic': float(sarimax_fitted.aic),
+                    'bic': float(sarimax_fitted.bic),
+                    'rmse': sarimax_metrics['rmse'],
+                    'mae': sarimax_metrics['mae'],
+                    'mape': sarimax_metrics['mape'],
+                    'forecasted_demand': sarimax_forecast_values,
+                    'confidence_intervals': {
+                        'lower': sarimax_conf_int.iloc[:, 0].astype(float).fillna(0).tolist(),
+                        'upper': sarimax_conf_int.iloc[:, 1].astype(float).fillna(0).tolist(),
+                    },
+                    'features_used': feature_columns,
+                    'feature_weights': {
+                        name: float(sarimax_fitted.params[name])
+                        for name in feature_columns
+                        if name in sarimax_fitted.params.index
+                    }
+                }
+
+                model_comparison = self._build_model_comparison(
+                    model_comparison['arima'],
+                    {
+                        'order': {'p': p, 'd': d, 'q': q},
+                        'aic': float(sarimax_fitted.aic),
+                        'bic': float(sarimax_fitted.bic),
+                        'rmse': sarimax_metrics['rmse'],
+                        'mae': sarimax_metrics['mae'],
+                        'mape': sarimax_metrics['mape'],
+                    }
+                )
+                exogenous_features = feature_columns
+
+            except Exception as sarimax_error:
+                logger.warning(f"SARIMAX model could not be fitted for medicine {medicine_id}: {sarimax_error}")
+                sarimax_results = {
+                    'error': str(sarimax_error),
+                    'features_used': [],
+                    'forecasted_demand': [],
+                    'confidence_intervals': {'lower': [], 'upper': []},
+                }
             
             # Create DemandForecast object within a transaction
             with transaction.atomic():
@@ -345,6 +614,9 @@ class ARIMAForecastingService:
                     mape=metrics['mape'],
                     forecasted_demand=forecast_values,
                     confidence_intervals=confidence_intervals,
+                    sarimax_results=sarimax_results,
+                    model_comparison=model_comparison,
+                    exogenous_features=exogenous_features,
                     training_data_start=sales_data['date'].min(),
                     training_data_end=sales_data['date'].max(),
                     training_data_points=len(sales_data)

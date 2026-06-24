@@ -116,6 +116,9 @@ def generate_forecast(request):
             'medicine_name': forecast.medicine.name,
             'forecasted_demand': forecast.forecasted_demand,
             'confidence_intervals': forecast.confidence_intervals,
+                'sarimax': forecast.sarimax_results,
+                'model_comparison': forecast.model_comparison,
+                'exogenous_features': forecast.exogenous_features,
             'labels': all_labels,
             'forecast_labels': forecast_labels,
             'historical_data': {
@@ -215,6 +218,10 @@ def get_forecast_data(request, forecast_id):
                 'mae': forecast.mae,
                 'mape': forecast.mape,
             }
+            ,
+            'sarimax': forecast.sarimax_results,
+            'model_comparison': forecast.model_comparison,
+            'exogenous_features': forecast.exogenous_features,
         }
         
         return Response(chart_data)
