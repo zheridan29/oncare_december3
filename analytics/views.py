@@ -96,9 +96,9 @@ class AnalyticsDashboardView(TemplateView):
     
     def _get_customer_dashboard_data(self):
         """Get data for customer dashboard"""
-        # Customer's order history
+        # Order model stores user linkage via sales_rep in this codebase.
         customer_orders = Order.objects.filter(
-            customer=self.request.user
+            sales_rep=self.request.user
         ).order_by('-created_at')[:10]
         
         # Customer analytics
@@ -373,6 +373,37 @@ class ForecastOnlyView(TemplateView):
         return forecast_data
 
 
+class ForecastDecisionView(TemplateView):
+    """
+    Dedicated decision page that compares ARIMA vs SARIMAX forecasts.
+    """
+    template_name = 'analytics/forecast_decision.html'
+
+    @method_decorator(login_required)
+    def dispatch(self, *args, **kwargs):
+        # Only allow admin and pharmacist access
+        if not (self.request.user.is_admin or self.request.user.is_pharmacist_admin):
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("Access denied. Admin or Pharmacist privileges required.")
+        return super().dispatch(*args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        medicines = Medicine.objects.filter(is_active=True).order_by('name')
+        requested_medicine_id = self.request.GET.get('medicine_id')
+
+        default_medicine = None
+        if requested_medicine_id:
+            try:
+                default_medicine = medicines.filter(id=int(requested_medicine_id)).first()
+            except (TypeError, ValueError):
+                default_medicine = None
+
+        context['medicines'] = medicines
+        context['default_medicine'] = default_medicine or medicines.first()
+        return context
+
+
 @login_required
 @staff_member_required
 def arima_demonstration_view(request):
@@ -488,6 +519,23 @@ def arima_analysis_data(request):
         # 5. Generate Forecast
         forecast_periods = 12
         forecast, conf_int = model.predict(n_periods=forecast_periods, return_conf_int=True)
+
+        sarimax_forecast_values = []
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                sarimax_model = SARIMAX(
+                    ts_data,
+                    order=model.order,
+                    seasonal_order=model.seasonal_order,
+                    enforce_stationarity=False,
+                    enforce_invertibility=False,
+                )
+                sarimax_fitted = sarimax_model.fit(disp=False, maxiter=100)
+                sarimax_forecast = sarimax_fitted.get_forecast(steps=forecast_periods).predicted_mean
+                sarimax_forecast_values = [float(value) if np.isfinite(value) else 0.0 for value in sarimax_forecast.tolist()]
+        except Exception:
+            sarimax_forecast_values = []
         
         # 6. Create Visualizations
         charts = create_arima_charts(ts_data, model, forecast, conf_int, decomposition if 'decomposition' in locals() else None)
@@ -517,6 +565,7 @@ def arima_analysis_data(request):
             'model': model_evaluation,
             'forecast': {
                 'values': forecast.tolist(),
+                'sarimax_values': sarimax_forecast_values,
                 'confidence_intervals': {
                     'lower': conf_int[:, 0].tolist(),
                     'upper': conf_int[:, 1].tolist()
@@ -601,7 +650,36 @@ def create_arima_charts(ts_data, model, forecast, conf_int, decomposition=None):
         fig, ax = plt.subplots(figsize=(12, 6))
         fitted_values = model.predict_in_sample()
         ax.plot(ts_data.index, ts_data.values, label='Actual', linewidth=2, color='blue')
-        ax.plot(ts_data.index, fitted_values, label='Fitted', linewidth=2, color='red')
+        ax.plot(ts_data.index, fitted_values, label='ARIMA Fitted', linewidth=2, color='red')
+
+        # Add SARIMAX fitted values for direct model fit comparison.
+        try:
+            from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                sarimax_model = SARIMAX(
+                    ts_data,
+                    order=model.order,
+                    seasonal_order=model.seasonal_order,
+                    enforce_stationarity=False,
+                    enforce_invertibility=False,
+                )
+                sarimax_fitted = sarimax_model.fit(disp=False, maxiter=100)
+
+            sarimax_fitted_values = sarimax_fitted.fittedvalues
+            sarimax_index = ts_data.index[-len(sarimax_fitted_values):]
+            ax.plot(
+                sarimax_index,
+                sarimax_fitted_values,
+                label='SARIMAX Fitted',
+                linewidth=2,
+                color='green'
+            )
+        except Exception:
+            # Keep chart generation resilient even when SARIMAX fit fails.
+            pass
+
         ax.set_title('Model Fit Comparison', fontsize=14, fontweight='bold')
         ax.set_xlabel('Date')
         ax.set_ylabel('Quantity Sold')
@@ -758,8 +836,31 @@ def arima_analysis_data(request):
         
         # Generate forecast
         forecast, conf_int = model.predict(n_periods=12, return_conf_int=True)
+        sarimax_forecast_values = []
+        sarimax_is_fallback = False
+        try:
+            from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                sarimax_model = SARIMAX(
+                    ts_data,
+                    order=model.order,
+                    seasonal_order=model.seasonal_order,
+                    enforce_stationarity=False,
+                    enforce_invertibility=False,
+                )
+                sarimax_fitted = sarimax_model.fit(disp=False, maxiter=100)
+                sarimax_forecast = sarimax_fitted.get_forecast(steps=12).predicted_mean
+                sarimax_forecast_values = [float(value) if np.isfinite(value) else 0.0 for value in sarimax_forecast.tolist()]
+        except Exception:
+            sarimax_is_fallback = True
+            sarimax_forecast_values = forecast.tolist()
+
         forecast_info = {
             'values': forecast.tolist(),
+            'sarimax_values': sarimax_forecast_values,
+            'sarimax_is_fallback': sarimax_is_fallback,
             'confidence_intervals': conf_int.tolist(),
             'statistics': {
                 'mean': float(np.mean(forecast)),
@@ -767,6 +868,25 @@ def arima_analysis_data(request):
                 'min': float(np.min(forecast)),
                 'max': float(np.max(forecast))
             }
+        }
+
+        # Build compact series payload for top overview chart.
+        history_window = 24
+        history_series = ts_data.tail(history_window)
+
+        if period_type == 'daily':
+            forecast_index = pd.date_range(start=history_series.index[-1] + pd.DateOffset(days=1), periods=12, freq='D')
+        elif period_type == 'weekly':
+            forecast_index = pd.date_range(start=history_series.index[-1] + pd.DateOffset(weeks=1), periods=12, freq='W')
+        else:
+            forecast_index = pd.date_range(start=history_series.index[-1] + pd.DateOffset(months=1), periods=12, freq='M')
+
+        overview_series = {
+            'history_labels': [idx.strftime('%b %d, %Y') for idx in history_series.index],
+            'history_values': [float(v) for v in history_series.values.tolist()],
+            'forecast_labels': [idx.strftime('%b %d, %Y') for idx in forecast_index],
+            'arima_forecast_values': [float(v) for v in forecast.tolist()],
+            'sarimax_forecast_values': [float(v) for v in sarimax_forecast_values],
         }
         
         # Generate charts
@@ -798,6 +918,7 @@ def arima_analysis_data(request):
             'seasonal': seasonal,
             'model': model_info,
             'forecast': forecast_info,
+            'overview_series': overview_series,
             'charts': charts
         }
         

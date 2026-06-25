@@ -15,6 +15,7 @@ from pmdarima import auto_arima
 from statsmodels.tsa.stattools import acf, pacf
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.statespace.sarimax import SARIMAX
+from statsmodels.tools.sm_exceptions import ValueWarning as SMValueWarning
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import warnings
 
@@ -29,6 +30,8 @@ from transactions.models import Transaction
 
 logger = logging.getLogger(__name__)
 warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore', category=SMValueWarning, module='statsmodels')
+warnings.filterwarnings('ignore', message='Matrix is singular. Using pinv.')
 
 
 def retry_database_operation(max_retries=3, delay=1):
@@ -183,18 +186,26 @@ class ARIMAForecastingService:
             if len(clean_data) == 0:
                 logger.warning("No valid data points after cleaning, using fallback parameters")
                 return 1, 1, 1
+
+            # Constant series can cause numerical singularities in auto_arima.
+            # Use a stable baseline order directly.
+            if clean_data.nunique() <= 1:
+                logger.info("Constant time series detected; using ARIMA(0,0,0) baseline")
+                return 0, 0, 0
             
             # Use auto_arima to find best parameters
-            model = auto_arima(
-                clean_data,
-                start_p=0, start_q=0,
-                max_p=5, max_q=5,
-                seasonal=False,
-                stepwise=True,
-                suppress_warnings=True,
-                error_action='ignore',
-                trace=False
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', SMValueWarning)
+                model = auto_arima(
+                    clean_data,
+                    start_p=0, start_q=0,
+                    max_p=5, max_q=5,
+                    seasonal=False,
+                    stepwise=True,
+                    suppress_warnings=True,
+                    error_action='ignore',
+                    trace=False
+                )
             
             # Safely extract parameters and handle NaN values
             p = int(model.order[0]) if not pd.isna(model.order[0]) else 1
@@ -262,6 +273,14 @@ class ARIMAForecastingService:
             'monthly': 'M'
         }
         return period_map.get(period_type, 'W')
+
+    def _get_target_frequency(self, period_type: str) -> str:
+        freq_map = {
+            'daily': 'D',
+            'weekly': 'W',
+            'monthly': 'MS',
+        }
+        return freq_map.get(period_type, 'W')
 
     def _generate_future_dates(self, last_date: pd.Timestamp, forecast_horizon: int, period_type: str) -> List[pd.Timestamp]:
         future_dates = []
@@ -396,6 +415,52 @@ class ARIMAForecastingService:
 
         return pd.DataFrame(future_rows).reindex(columns=feature_columns).fillna(0.0)
 
+    def _sanitize_exogenous_features(
+        self,
+        historical_exog: pd.DataFrame,
+        future_exog: pd.DataFrame,
+        feature_columns: List[str],
+    ) -> Tuple[pd.DataFrame, pd.DataFrame, List[str]]:
+        """
+        Remove near-constant and linearly dependent exogenous columns so
+        SARIMAX receives a numerically stable full-rank design matrix.
+        """
+        if historical_exog.empty or not feature_columns:
+            return historical_exog, future_exog, feature_columns
+
+        safe_columns: List[str] = []
+        for column in feature_columns:
+            col_values = pd.to_numeric(historical_exog[column], errors='coerce').fillna(0.0)
+            if float(col_values.std()) <= 1e-10:
+                continue
+            safe_columns.append(column)
+
+        if not safe_columns:
+            return pd.DataFrame(index=historical_exog.index), pd.DataFrame(index=future_exog.index), []
+
+        hist = historical_exog[safe_columns].astype(float).copy()
+        fut = future_exog[safe_columns].astype(float).copy()
+
+        selected: List[str] = []
+        matrix = np.empty((len(hist), 0))
+
+        for column in safe_columns:
+            candidate = hist[column].to_numpy().reshape(-1, 1)
+            if matrix.size == 0:
+                matrix = candidate
+                selected.append(column)
+                continue
+
+            combined = np.hstack([matrix, candidate])
+            if np.linalg.matrix_rank(combined) > np.linalg.matrix_rank(matrix):
+                matrix = combined
+                selected.append(column)
+
+        if not selected:
+            return pd.DataFrame(index=historical_exog.index), pd.DataFrame(index=future_exog.index), []
+
+        return hist[selected], fut[selected], selected
+
     def _build_model_comparison(self, arima_metrics: Dict[str, float], sarimax_metrics: Dict[str, float]) -> Dict[str, object]:
         def improvement_percentage(baseline: float, comparison: float) -> Optional[float]:
             if baseline in (None, 0) or not np.isfinite(baseline) or not np.isfinite(comparison):
@@ -432,7 +497,21 @@ class ARIMAForecastingService:
                 raise ValueError(f"Insufficient {forecast_period} data points. Need at least {min_points}, got {len(sales_data)}")
             
             # Prepare time series data
-            ts_data = sales_data.set_index('date')['quantity']
+            ts_data = sales_data.set_index('date')['quantity'].sort_index()
+
+            # Ensure the index carries frequency information so statsmodels
+            # can use dates consistently during fitting/forecasting.
+            inferred_freq = pd.infer_freq(ts_data.index)
+            if inferred_freq:
+                ts_data = ts_data.asfreq(inferred_freq)
+            else:
+                target_freq = self._get_target_frequency(forecast_period)
+                full_index = pd.date_range(
+                    start=ts_data.index.min(),
+                    end=ts_data.index.max(),
+                    freq=target_freq
+                )
+                ts_data = ts_data.reindex(full_index).fillna(0.0)
             
             # Clean data - remove NaN and infinite values
             ts_data = ts_data.dropna()
@@ -454,41 +533,64 @@ class ARIMAForecastingService:
                 ts_data = ts_data.clip(upper=upper_bound)
             
             logger.info(f"Cleaned time series data: {len(ts_data)} points, range: {ts_data.min():.2f} to {ts_data.max():.2f}")
-            
-            # Find optimal ARIMA parameters
-            p, d, q = self.find_optimal_arima_params(ts_data)
-            
-            # Fit ARIMA model
-            from statsmodels.tsa.arima.model import ARIMA
-            model = ARIMA(ts_data, order=(p, d, q))
-            fitted_model = model.fit()
-            
-            # Generate forecast
-            forecast_result = fitted_model.forecast(steps=forecast_horizon)
-            forecast_values = forecast_result.values.tolist()
-            
-            # Handle NaN values in forecast
-            forecast_values = [0.0 if pd.isna(val) or not np.isfinite(val) else float(val) for val in forecast_values]
-            
-            # Calculate confidence intervals with safer handling
-            forecast_object = fitted_model.get_forecast(steps=forecast_horizon)
-            conf_int = forecast_object.conf_int()
-            lower_bounds = conf_int.iloc[:, 0].astype(float).fillna(0).tolist()
-            upper_bounds = conf_int.iloc[:, 1].astype(float).fillna(0).tolist()
-            
-            confidence_intervals = {
-                'lower': lower_bounds,
-                'upper': upper_bounds
-            }
-            
-            # Calculate model metrics using in-sample predictions
-            fitted_values = fitted_model.fittedvalues
-            actual_values = ts_data.iloc[len(ts_data) - len(fitted_values):].values
-            
-            metrics = self.calculate_model_metrics(actual_values, fitted_values.values)
-            
-            # Calculate ACF and PACF
-            acf_pacf = self.calculate_acf_pacf(ts_data)
+
+            is_constant_series = ts_data.nunique(dropna=True) <= 1
+
+            if is_constant_series:
+                p, d, q = 0, 0, 0
+                baseline_value = float(ts_data.iloc[-1])
+                forecast_values = [baseline_value for _ in range(forecast_horizon)]
+                confidence_intervals = {
+                    'lower': forecast_values.copy(),
+                    'upper': forecast_values.copy(),
+                }
+                metrics = self.calculate_model_metrics(
+                    ts_data.values,
+                    np.full(len(ts_data), baseline_value, dtype=float)
+                )
+                acf_pacf = {'acf': [], 'pacf': []}
+                arima_aic = 0.0
+                arima_bic = 0.0
+                logger.info("Constant series detected: using flat baseline forecast")
+            else:
+                # Find optimal ARIMA parameters
+                p, d, q = self.find_optimal_arima_params(ts_data)
+
+                # Fit ARIMA model
+                from statsmodels.tsa.arima.model import ARIMA
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', SMValueWarning)
+                    model = ARIMA(ts_data, order=(p, d, q))
+                    fitted_model = model.fit()
+
+                # Generate forecast
+                forecast_result = fitted_model.forecast(steps=forecast_horizon)
+                forecast_values = forecast_result.values.tolist()
+
+                # Handle NaN values in forecast
+                forecast_values = [0.0 if pd.isna(val) or not np.isfinite(val) else float(val) for val in forecast_values]
+
+                # Calculate confidence intervals with safer handling
+                forecast_object = fitted_model.get_forecast(steps=forecast_horizon)
+                conf_int = forecast_object.conf_int()
+                lower_bounds = conf_int.iloc[:, 0].astype(float).fillna(0).tolist()
+                upper_bounds = conf_int.iloc[:, 1].astype(float).fillna(0).tolist()
+
+                confidence_intervals = {
+                    'lower': lower_bounds,
+                    'upper': upper_bounds
+                }
+
+                # Calculate model metrics using in-sample predictions
+                fitted_values = fitted_model.fittedvalues
+                actual_values = ts_data.iloc[len(ts_data) - len(fitted_values):].values
+
+                metrics = self.calculate_model_metrics(actual_values, fitted_values.values)
+
+                # Calculate ACF and PACF
+                acf_pacf = self.calculate_acf_pacf(ts_data)
+                arima_aic = float(fitted_model.aic)
+                arima_bic = float(fitted_model.bic)
 
             sarimax_results = {
                 'error': 'SARIMAX model not fitted'
@@ -497,8 +599,8 @@ class ARIMAForecastingService:
             model_comparison = {
                 'arima': {
                     'order': {'p': p, 'd': d, 'q': q},
-                    'aic': float(fitted_model.aic),
-                    'bic': float(fitted_model.bic),
+                    'aic': arima_aic,
+                    'bic': arima_bic,
                     'rmse': metrics['rmse'],
                     'mae': metrics['mae'],
                     'mape': metrics['mape'],
@@ -522,6 +624,7 @@ class ARIMAForecastingService:
 
                 historical_exog = historical_features[feature_columns].fillna(0.0).astype(float)
                 historical_exog.index = pd.to_datetime(historical_features['date'])
+                historical_exog = historical_exog.reindex(ts_data.index).fillna(0.0)
 
                 future_dates = self._generate_future_dates(
                     pd.to_datetime(historical_features['date'].iloc[-1]),
@@ -536,58 +639,100 @@ class ARIMAForecastingService:
                 ).fillna(0.0).astype(float)
                 future_exog.index = pd.to_datetime(future_dates)
 
-                sarimax_model = SARIMAX(
-                    ts_data,
-                    exog=historical_exog,
-                    order=(p, d, q),
-                    seasonal_order=(0, 0, 0, 0),
-                    enforce_stationarity=False,
-                    enforce_invertibility=False
+                historical_exog, future_exog, feature_columns = self._sanitize_exogenous_features(
+                    historical_exog,
+                    future_exog,
+                    feature_columns,
                 )
-                sarimax_fitted = sarimax_model.fit(disp=False, maxiter=100)
 
-                sarimax_fitted_values = sarimax_fitted.fittedvalues
-                sarimax_actual_values = ts_data.iloc[len(ts_data) - len(sarimax_fitted_values):].values
-                sarimax_metrics = self.calculate_model_metrics(sarimax_actual_values, sarimax_fitted_values.values)
-
-                sarimax_forecast_object = sarimax_fitted.get_forecast(steps=forecast_horizon, exog=future_exog)
-                sarimax_forecast = sarimax_forecast_object.predicted_mean
-                sarimax_forecast_values = [0.0 if pd.isna(value) or not np.isfinite(value) else float(value) for value in sarimax_forecast.values.tolist()]
-
-                sarimax_conf_int = sarimax_forecast_object.conf_int()
-                sarimax_results = {
-                    'order': {'p': p, 'd': d, 'q': q},
-                    'seasonal_order': {'P': 0, 'D': 0, 'Q': 0, 'm': 0},
-                    'aic': float(sarimax_fitted.aic),
-                    'bic': float(sarimax_fitted.bic),
-                    'rmse': sarimax_metrics['rmse'],
-                    'mae': sarimax_metrics['mae'],
-                    'mape': sarimax_metrics['mape'],
-                    'forecasted_demand': sarimax_forecast_values,
-                    'confidence_intervals': {
-                        'lower': sarimax_conf_int.iloc[:, 0].astype(float).fillna(0).tolist(),
-                        'upper': sarimax_conf_int.iloc[:, 1].astype(float).fillna(0).tolist(),
-                    },
-                    'features_used': feature_columns,
-                    'feature_weights': {
-                        name: float(sarimax_fitted.params[name])
-                        for name in feature_columns
-                        if name in sarimax_fitted.params.index
-                    }
-                }
-
-                model_comparison = self._build_model_comparison(
-                    model_comparison['arima'],
-                    {
+                if not feature_columns:
+                    logger.info(
+                        "Skipping SARIMAX exogenous fit for medicine %s: no stable exogenous features after sanitization",
+                        medicine_id,
+                    )
+                    fallback_metrics = {
                         'order': {'p': p, 'd': d, 'q': q},
+                        'aic': arima_aic,
+                        'bic': arima_bic,
+                        'rmse': metrics['rmse'],
+                        'mae': metrics['mae'],
+                        'mape': metrics['mape'],
+                    }
+                    sarimax_results = {
+                        'order': {'p': p, 'd': d, 'q': q},
+                        'seasonal_order': {'P': 0, 'D': 0, 'Q': 0, 'm': 0},
+                        'aic': arima_aic,
+                        'bic': arima_bic,
+                        'rmse': metrics['rmse'],
+                        'mae': metrics['mae'],
+                        'mape': metrics['mape'],
+                        'forecasted_demand': forecast_values,
+                        'confidence_intervals': confidence_intervals,
+                        'features_used': [],
+                        'feature_weights': {},
+                        'fallback_used': True,
+                        'fallback_reason': 'No stable exogenous features available after sanitization',
+                    }
+                    model_comparison = self._build_model_comparison(
+                        model_comparison['arima'],
+                        fallback_metrics,
+                    )
+                    exogenous_features = []
+                else:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter('ignore', SMValueWarning)
+                        sarimax_model = SARIMAX(
+                            ts_data,
+                            exog=historical_exog,
+                            order=(p, d, q),
+                            seasonal_order=(0, 0, 0, 0),
+                            enforce_stationarity=False,
+                            enforce_invertibility=False
+                        )
+                        sarimax_fitted = sarimax_model.fit(disp=False, maxiter=100)
+
+                    sarimax_fitted_values = sarimax_fitted.fittedvalues
+                    sarimax_actual_values = ts_data.iloc[len(ts_data) - len(sarimax_fitted_values):].values
+                    sarimax_metrics = self.calculate_model_metrics(sarimax_actual_values, sarimax_fitted_values.values)
+
+                    sarimax_forecast_object = sarimax_fitted.get_forecast(steps=forecast_horizon, exog=future_exog)
+                    sarimax_forecast = sarimax_forecast_object.predicted_mean
+                    sarimax_forecast_values = [0.0 if pd.isna(value) or not np.isfinite(value) else float(value) for value in sarimax_forecast.values.tolist()]
+
+                    sarimax_conf_int = sarimax_forecast_object.conf_int()
+                    sarimax_results = {
+                        'order': {'p': p, 'd': d, 'q': q},
+                        'seasonal_order': {'P': 0, 'D': 0, 'Q': 0, 'm': 0},
                         'aic': float(sarimax_fitted.aic),
                         'bic': float(sarimax_fitted.bic),
                         'rmse': sarimax_metrics['rmse'],
                         'mae': sarimax_metrics['mae'],
                         'mape': sarimax_metrics['mape'],
+                        'forecasted_demand': sarimax_forecast_values,
+                        'confidence_intervals': {
+                            'lower': sarimax_conf_int.iloc[:, 0].astype(float).fillna(0).tolist(),
+                            'upper': sarimax_conf_int.iloc[:, 1].astype(float).fillna(0).tolist(),
+                        },
+                        'features_used': feature_columns,
+                        'feature_weights': {
+                            name: float(sarimax_fitted.params[name])
+                            for name in feature_columns
+                            if name in sarimax_fitted.params.index
+                        }
                     }
-                )
-                exogenous_features = feature_columns
+
+                    model_comparison = self._build_model_comparison(
+                        model_comparison['arima'],
+                        {
+                            'order': {'p': p, 'd': d, 'q': q},
+                            'aic': float(sarimax_fitted.aic),
+                            'bic': float(sarimax_fitted.bic),
+                            'rmse': sarimax_metrics['rmse'],
+                            'mae': sarimax_metrics['mae'],
+                            'mape': sarimax_metrics['mape'],
+                        }
+                    )
+                    exogenous_features = feature_columns
 
             except Exception as sarimax_error:
                 logger.warning(f"SARIMAX model could not be fitted for medicine {medicine_id}: {sarimax_error}")
@@ -607,8 +752,8 @@ class ARIMAForecastingService:
                     arima_p=p,
                     arima_d=d,
                     arima_q=q,
-                    aic=float(fitted_model.aic),
-                    bic=float(fitted_model.bic),
+                    aic=arima_aic,
+                    bic=arima_bic,
                     rmse=metrics['rmse'],
                     mae=metrics['mae'],
                     mape=metrics['mape'],

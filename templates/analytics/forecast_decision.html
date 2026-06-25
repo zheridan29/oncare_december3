@@ -1,0 +1,443 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}ARIMA vs SARIMAX Decision - Analytics{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hero-card {
+        background: linear-gradient(135deg, #1b4965 0%, #62b6cb 100%);
+        color: #ffffff;
+        border-radius: 14px;
+        padding: 24px;
+        margin-bottom: 20px;
+    }
+
+    .panel-card {
+        background: #ffffff;
+        border-radius: 14px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .recommendation-badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 10px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+
+    .recommendation-badge.arima {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .recommendation-badge.sarimax {
+        background: #cfe2ff;
+        color: #084298;
+    }
+
+    .metric-chip {
+        display: inline-block;
+        min-width: 80px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        text-align: center;
+        font-weight: 600;
+    }
+
+    .metric-chip.good {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .metric-chip.warn {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    .metric-chip.bad {
+        background: #f8d7da;
+        color: #842029;
+    }
+
+    .mini-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .model-tile {
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 14px;
+        background: #fcfdff;
+    }
+
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0;
+        border-bottom: 1px dashed #eef2f7;
+    }
+
+    .metric-row:last-child {
+        border-bottom: 0;
+    }
+
+    .insight-box {
+        border-radius: 10px;
+        background: #f8f9fa;
+        padding: 12px;
+    }
+
+    .model-fit-wrap {
+        position: relative;
+        height: 320px;
+        max-height: 320px;
+        width: 100%;
+        overflow: hidden;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="hero-card">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h2 class="mb-2"><i class="fas fa-balance-scale me-2"></i>ARIMA vs SARIMAX Decision Center</h2>
+                <p class="mb-0">This page compares baseline ARIMA and enhanced SARIMAX forecasts for the selected medicine, with an automatic recommendation based on error metrics.</p>
+            </div>
+            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                <a href="{% url 'analytics:dashboard' %}" class="btn btn-light">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Analytics
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel-card">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label for="medicineSelect" class="form-label">Select Medicine</label>
+                <select id="medicineSelect" class="form-select">
+                    {% for medicine in medicines %}
+                    <option value="{{ medicine.id }}" {% if default_medicine and medicine.id == default_medicine.id %}selected{% endif %}>{{ medicine.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="horizonSelect" class="form-label">Forecast Horizon</label>
+                <select id="horizonSelect" class="form-select">
+                    <option value="4">4 periods</option>
+                    <option value="8" selected>8 periods</option>
+                    <option value="12">12 periods</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-grid">
+                <button id="compareModelsBtn" class="btn btn-primary" onclick="runDecisionAnalysis(true)">
+                    <i class="fas fa-play me-1"></i>Compare Models
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="messageArea"></div>
+
+    <div id="comparisonSection" style="display:none;">
+        <div class="panel-card">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h4 class="mb-1" id="selectedMedicineTitle">-</h4>
+                    <div class="mini-label" id="selectionReason">-</div>
+                </div>
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                    <span id="recommendedBadge" class="recommendation-badge" style="display:none;"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-card">
+            <h5 class="mb-3"><i class="fas fa-bolt me-2"></i>Quick Comparison</h5>
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <div class="model-tile">
+                        <h6 class="mb-2">ARIMA</h6>
+                        <div class="metric-row"><span class="mini-label">MAPE</span><span id="arimaMapeValue">-</span></div>
+                        <div class="metric-row"><span class="mini-label">RMSE</span><strong id="arimaRmseValue">-</strong></div>
+                        <div class="metric-row"><span class="mini-label">MAE</span><strong id="arimaMaeValue">-</strong></div>
+                        <div class="mini-label mt-2">Order</div>
+                        <div id="arimaOrderText">-</div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="model-tile">
+                        <h6 class="mb-2">SARIMAX</h6>
+                        <div class="metric-row"><span class="mini-label">MAPE</span><span id="sarimaxMapeValue">-</span></div>
+                        <div class="metric-row"><span class="mini-label">RMSE</span><strong id="sarimaxRmseValue">-</strong></div>
+                        <div class="metric-row"><span class="mini-label">MAE</span><strong id="sarimaxMaeValue">-</strong></div>
+                        <div class="mini-label mt-2">Order / Seasonal</div>
+                        <div id="sarimaxOrderText">-</div>
+                        <div id="seasonalOrderText" class="mini-label">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mt-1">
+                <div class="col-md-6">
+                    <div class="insight-box">
+                        <div class="mini-label">Improvement vs ARIMA</div>
+                        <div>MAPE: <strong id="impMapeValue">-</strong></div>
+                        <div>RMSE: <strong id="impRmseValue">-</strong></div>
+                        <div>MAE: <strong id="impMaeValue">-</strong></div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="insight-box">
+                        <div class="mini-label">Exogenous Features Used</div>
+                        <div id="featuresList" class="mini-label">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3 pt-3" style="border-top: 1px solid #e9ecef;">
+                <h6 class="mb-2">Model Fit Comparison</h6>
+                <div class="mini-label mb-2">Actual vs in-sample fitted lines for ARIMA and SARIMAX</div>
+                <div class="model-fit-wrap">
+                    <canvas id="modelFitChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let modelFitChart = null;
+
+function showMessage(type, message) {
+    const cssMap = {
+        danger: 'alert-danger',
+        warning: 'alert-warning',
+        success: 'alert-success',
+        info: 'alert-info'
+    };
+    const css = cssMap[type] || 'alert-secondary';
+    document.getElementById('messageArea').innerHTML = `<div class="alert ${css}">${message}</div>`;
+}
+
+function formatMetric(value, decimals = 2, suffix = '') {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return '-';
+    }
+    return `${Number(value).toFixed(decimals)}${suffix}`;
+}
+
+function formatImprovement(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return '-';
+    }
+    const numeric = Number(value);
+    const arrow = numeric > 0 ? '↓' : (numeric < 0 ? '↑' : '→');
+    return `${arrow} ${Math.abs(numeric).toFixed(1)}%`;
+}
+
+function chipByMape(mape) {
+    if (mape === null || mape === undefined || Number.isNaN(Number(mape))) {
+        return '<span class="metric-chip bad">N/A</span>';
+    }
+    const value = Number(mape);
+    if (value < 10) return `<span class="metric-chip good">${value.toFixed(2)}%</span>`;
+    if (value < 20) return `<span class="metric-chip warn">${value.toFixed(2)}%</span>`;
+    return `<span class="metric-chip bad">${value.toFixed(2)}%</span>`;
+}
+
+function destroyCharts() {
+    if (modelFitChart) {
+        modelFitChart.destroy();
+        modelFitChart = null;
+    }
+}
+
+function updateDecisionTable(data) {
+    const comparison = data.model_comparison || {};
+    const arima = comparison.arima || {};
+    const sarimaxCmp = comparison.sarimax || {};
+    const improvement = comparison.improvement_pct || {};
+
+    document.getElementById('arimaMapeValue').innerHTML = chipByMape(arima.mape ?? data.model_info?.mape);
+    document.getElementById('sarimaxMapeValue').innerHTML = chipByMape(sarimaxCmp.mape ?? data.sarimax?.mape);
+    document.getElementById('impMapeValue').textContent = formatImprovement(improvement.mape);
+
+    document.getElementById('arimaRmseValue').textContent = formatMetric(arima.rmse ?? data.model_info?.rmse, 4);
+    document.getElementById('sarimaxRmseValue').textContent = formatMetric(sarimaxCmp.rmse ?? data.sarimax?.rmse, 4);
+    document.getElementById('impRmseValue').textContent = formatImprovement(improvement.rmse);
+
+    document.getElementById('arimaMaeValue').textContent = formatMetric(arima.mae ?? data.model_info?.mae, 4);
+    document.getElementById('sarimaxMaeValue').textContent = formatMetric(sarimaxCmp.mae ?? data.sarimax?.mae, 4);
+    document.getElementById('impMaeValue').textContent = formatImprovement(improvement.mae);
+
+    document.getElementById('arimaOrderText').textContent = data.model_info?.arima_params || '-';
+
+    const so = data.sarimax?.order || {};
+    const sso = data.sarimax?.seasonal_order || {};
+    document.getElementById('sarimaxOrderText').textContent = (so.p !== undefined) ? `ARIMA(${so.p},${so.d},${so.q})` : '-';
+    document.getElementById('seasonalOrderText').textContent = (sso.P !== undefined) ? `(${sso.P},${sso.D},${sso.Q},${sso.m})` : '-';
+
+    const features = data.exogenous_features || data.sarimax?.features_used || [];
+    const clippedFeatures = features.slice(0, 8);
+    const moreCount = Math.max(0, features.length - clippedFeatures.length);
+    const featureText = clippedFeatures.length ? clippedFeatures.join(', ') : 'No exogenous features recorded';
+    document.getElementById('featuresList').textContent = moreCount > 0 ? `${featureText} (+${moreCount} more)` : featureText;
+
+    const recommended = (comparison.recommended_model || '').toLowerCase();
+    const badge = document.getElementById('recommendedBadge');
+    if (recommended === 'arima' || recommended === 'sarimax') {
+        badge.className = `recommendation-badge ${recommended}`;
+        badge.textContent = `Recommended: ${recommended.toUpperCase()}`;
+        badge.style.display = 'inline-block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function updateCharts(data) {
+    destroyCharts();
+
+    const fitData = data.chart_data?.model_fit || {};
+    const labels = fitData.labels || [];
+    const actualValues = fitData.actual || [];
+    const arimaFit = fitData.arima || [];
+    const sarimaxFit = fitData.sarimax || [];
+
+    const fitCtx = document.getElementById('modelFitChart').getContext('2d');
+    modelFitChart = new Chart(fitCtx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Actual',
+                    data: actualValues,
+                    borderColor: 'rgb(108, 117, 125)',
+                    backgroundColor: 'rgba(108, 117, 125, 0.12)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.15
+                },
+                {
+                    label: 'ARIMA Fit',
+                    data: arimaFit,
+                    borderColor: 'rgb(13, 110, 253)',
+                    backgroundColor: 'rgba(13, 110, 253, 0.15)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.2
+                },
+                {
+                    label: 'SARIMAX Fit',
+                    data: sarimaxFit,
+                    borderColor: 'rgb(25, 135, 84)',
+                    backgroundColor: 'rgba(25, 135, 84, 0.15)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        autoSkip: true,
+                        maxTicksLimit: 10,
+                        maxRotation: 0,
+                    },
+                    grid: {
+                        display: false,
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Demand' }
+                }
+            }
+        }
+    });
+}
+
+async function runDecisionAnalysis(showClickStatus = false) {
+    const medicineSelect = document.getElementById('medicineSelect');
+    const medicineId = medicineSelect.value;
+    const compareBtn = document.getElementById('compareModelsBtn');
+
+    if (medicineId) {
+        localStorage.setItem('forecastDecisionMedicineId', medicineId);
+    }
+
+    if (showClickStatus) {
+        showMessage('info', 'Comparing ARIMA and SARIMAX models. Please wait...');
+        compareBtn.disabled = true;
+        compareBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Comparing...';
+    } else {
+        document.getElementById('messageArea').innerHTML = '';
+    }
+
+    try {
+        const response = await fetch(`/analytics/api/forecast/best-auto/?medicine_id=${medicineId}`);
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+            document.getElementById('comparisonSection').style.display = 'none';
+            showMessage('warning', data.error || 'Unable to load model comparison for this medicine.');
+            return;
+        }
+
+        document.getElementById('comparisonSection').style.display = 'block';
+        document.getElementById('selectedMedicineTitle').textContent = `${data.medicine_name} - ARIMA vs SARIMAX`;
+        document.getElementById('selectionReason').textContent = data.selection_reason || 'Best model selected from available metrics.';
+
+        updateDecisionTable(data);
+        updateCharts(data);
+
+        if (showClickStatus) {
+            showMessage('success', `Comparison loaded for ${data.medicine_name}.`);
+        }
+    } catch (error) {
+        document.getElementById('comparisonSection').style.display = 'none';
+        showMessage('danger', 'Failed to load decision analysis. Please try again.');
+    } finally {
+        compareBtn.disabled = false;
+        compareBtn.innerHTML = '<i class="fas fa-play me-1"></i>Compare Models';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const medicineSelect = document.getElementById('medicineSelect');
+    const savedMedicineId = localStorage.getItem('forecastDecisionMedicineId');
+
+    if (savedMedicineId && medicineSelect.querySelector(`option[value="${savedMedicineId}"]`)) {
+        medicineSelect.value = savedMedicineId;
+    }
+
+    medicineSelect.addEventListener('change', function() {
+        if (this.value) {
+            localStorage.setItem('forecastDecisionMedicineId', this.value);
+        }
+    });
+
+    runDecisionAnalysis(false);
+});
+</script>
+{% endblock %}

@@ -6,6 +6,7 @@ app_name = 'analytics'
 urlpatterns = [
     # Dashboard views
     path('', views.AnalyticsDashboardView.as_view(), name='dashboard'),
+    path('forecast-decision/', views.ForecastDecisionView.as_view(), name='forecast_decision'),
     path('forecast-only/', views.ForecastOnlyView.as_view(), name='forecast_only'),
     path('model-evaluation/', views.ModelEvaluationView.as_view(), name='model_evaluation'),
     path('arima-demonstration/', views.arima_demonstration_view, name='arima_demonstration'),

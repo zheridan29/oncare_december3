@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from django.db import models
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -298,6 +299,38 @@ def get_inventory_optimization(request, medicine_id):
             medicine=medicine,
             is_active=True
         ).order_by('-calculated_at').first()
+
+        # If no optimization exists yet, generate it from the latest forecast
+        if not optimization:
+            latest_forecast = DemandForecast.objects.filter(
+                medicine=medicine,
+                is_active=True
+            ).order_by('-created_at').first()
+
+            forecasting_service = ARIMAForecastingService()
+
+            if not latest_forecast:
+                # Try to generate a forecast on demand; if there is no sales history,
+                # return a clean error so the client can prompt for a different medicine.
+                try:
+                    latest_forecast = forecasting_service.generate_forecast(
+                        medicine_id,
+                        forecast_period='weekly',
+                        forecast_horizon=4,
+                    )
+                except Exception as e:
+                    return Response(
+                        {'error': f'Cannot generate inventory optimization: {str(e)}'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+
+            try:
+                optimization = forecasting_service.optimize_inventory_levels(latest_forecast)
+            except Exception as e:
+                return Response(
+                    {'error': f'Cannot generate inventory optimization: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
         
         if not optimization:
             return Response(
@@ -836,6 +869,93 @@ def generate_forecast_on_demand(request):
         # Generate historical labels
         historical_labels = [d.strftime('%b %d, %Y') if hasattr(d, 'strftime') else str(d) for d in historical_data['date']]
         all_labels = historical_labels + forecast_labels
+
+        # Build compact model-fit comparison series for UI visualization.
+        fit_window = 80
+        model_fit_data = {
+            'labels': historical_labels[-fit_window:],
+            'actual': historical_data['quantity'].tolist()[-fit_window:],
+            'arima': [],
+            'sarimax': [],
+        }
+
+        try:
+            import numpy as np
+            import warnings
+            from statsmodels.tsa.arima.model import ARIMA
+            from statsmodels.tsa.statespace.sarimax import SARIMAX
+            from statsmodels.tools.sm_exceptions import ValueWarning as SMValueWarning
+
+            ts_data = historical_data.set_index('date')['quantity'].sort_index()
+            inferred_freq = pd.infer_freq(ts_data.index)
+            if inferred_freq:
+                ts_data = ts_data.asfreq(inferred_freq)
+            else:
+                target_freq = forecasting_service._get_target_frequency(best_metrics['period'])
+                ts_index = pd.date_range(ts_data.index.min(), ts_data.index.max(), freq=target_freq)
+                ts_data = ts_data.reindex(ts_index).fillna(0.0)
+
+            ts_data = pd.to_numeric(ts_data, errors='coerce').fillna(0.0)
+            ts_data = ts_data[np.isfinite(ts_data)]
+
+            arima_full = pd.Series(index=ts_data.index, dtype=float)
+            if ts_data.nunique(dropna=True) <= 1:
+                arima_full[:] = float(ts_data.iloc[-1]) if len(ts_data) else 0.0
+            else:
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', SMValueWarning)
+                    arima_model = ARIMA(ts_data, order=(best_forecast.arima_p, best_forecast.arima_d, best_forecast.arima_q))
+                    arima_fitted = arima_model.fit()
+                fitted_vals = pd.Series(arima_fitted.fittedvalues.values, index=ts_data.index[-len(arima_fitted.fittedvalues):])
+                arima_full.loc[fitted_vals.index] = fitted_vals.values
+
+            sarimax_full = arima_full.copy()
+            sarimax_meta = best_forecast.sarimax_results or {}
+            sarimax_features = sarimax_meta.get('features_used', [])
+            sarimax_fallback = bool(sarimax_meta.get('fallback_used'))
+
+            if sarimax_features and not sarimax_fallback:
+                historical_features = forecasting_service._build_exogenous_features(
+                    best_medicine.id,
+                    historical_data,
+                    best_metrics['period']
+                )
+                available_features = [c for c in sarimax_features if c in historical_features.columns]
+
+                if available_features:
+                    historical_exog = historical_features[available_features].fillna(0.0).astype(float)
+                    historical_exog.index = pd.to_datetime(historical_features['date'])
+                    historical_exog = historical_exog.reindex(ts_data.index).fillna(0.0)
+
+                    with warnings.catch_warnings():
+                        warnings.simplefilter('ignore', SMValueWarning)
+                        sarimax_model = SARIMAX(
+                            ts_data,
+                            exog=historical_exog,
+                            order=(best_forecast.arima_p, best_forecast.arima_d, best_forecast.arima_q),
+                            seasonal_order=(0, 0, 0, 0),
+                            enforce_stationarity=False,
+                            enforce_invertibility=False
+                        )
+                        sarimax_fitted = sarimax_model.fit(disp=False, maxiter=100)
+
+                    sarimax_vals = pd.Series(
+                        sarimax_fitted.fittedvalues.values,
+                        index=ts_data.index[-len(sarimax_fitted.fittedvalues):]
+                    )
+                    sarimax_full.loc[sarimax_vals.index] = sarimax_vals.values
+
+            fit_start = max(0, len(ts_data) - fit_window)
+            fit_slice_index = ts_data.index[fit_start:]
+
+            model_fit_data = {
+                'labels': [idx.strftime('%b %d, %Y') for idx in fit_slice_index],
+                'actual': [float(v) for v in ts_data.iloc[fit_start:].tolist()],
+                'arima': [None if pd.isna(v) else float(v) for v in arima_full.iloc[fit_start:].tolist()],
+                'sarimax': [None if pd.isna(v) else float(v) for v in sarimax_full.iloc[fit_start:].tolist()],
+            }
+        except Exception:
+            pass
         
         # Prepare chart data
         chart_data = {
@@ -1188,6 +1308,93 @@ def get_best_forecast_auto(request):
         # Generate historical labels
         historical_labels = [d.strftime('%b %d, %Y') if hasattr(d, 'strftime') else str(d) for d in historical_data['date']]
         all_labels = historical_labels + forecast_labels
+
+        # Build compact model-fit comparison series for UI visualization.
+        fit_window = 80
+        model_fit_data = {
+            'labels': historical_labels[-fit_window:],
+            'actual': historical_data['quantity'].tolist()[-fit_window:],
+            'arima': [],
+            'sarimax': [],
+        }
+
+        try:
+            import numpy as np
+            import warnings
+            from statsmodels.tsa.arima.model import ARIMA
+            from statsmodels.tsa.statespace.sarimax import SARIMAX
+            from statsmodels.tools.sm_exceptions import ValueWarning as SMValueWarning
+
+            ts_data = historical_data.set_index('date')['quantity'].sort_index()
+            inferred_freq = pd.infer_freq(ts_data.index)
+            if inferred_freq:
+                ts_data = ts_data.asfreq(inferred_freq)
+            else:
+                target_freq = forecasting_service._get_target_frequency(best_metrics['period'])
+                ts_index = pd.date_range(ts_data.index.min(), ts_data.index.max(), freq=target_freq)
+                ts_data = ts_data.reindex(ts_index).fillna(0.0)
+
+            ts_data = pd.to_numeric(ts_data, errors='coerce').fillna(0.0)
+            ts_data = ts_data[np.isfinite(ts_data)]
+
+            arima_full = pd.Series(index=ts_data.index, dtype=float)
+            if ts_data.nunique(dropna=True) <= 1:
+                arima_full[:] = float(ts_data.iloc[-1]) if len(ts_data) else 0.0
+            else:
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', SMValueWarning)
+                    arima_model = ARIMA(ts_data, order=(best_forecast.arima_p, best_forecast.arima_d, best_forecast.arima_q))
+                    arima_fitted = arima_model.fit()
+                fitted_vals = pd.Series(arima_fitted.fittedvalues.values, index=ts_data.index[-len(arima_fitted.fittedvalues):])
+                arima_full.loc[fitted_vals.index] = fitted_vals.values
+
+            sarimax_full = arima_full.copy()
+            sarimax_meta = best_forecast.sarimax_results or {}
+            sarimax_features = sarimax_meta.get('features_used', [])
+            sarimax_fallback = bool(sarimax_meta.get('fallback_used'))
+
+            if sarimax_features and not sarimax_fallback:
+                historical_features = forecasting_service._build_exogenous_features(
+                    best_medicine.id,
+                    historical_data,
+                    best_metrics['period']
+                )
+                available_features = [c for c in sarimax_features if c in historical_features.columns]
+
+                if available_features:
+                    historical_exog = historical_features[available_features].fillna(0.0).astype(float)
+                    historical_exog.index = pd.to_datetime(historical_features['date'])
+                    historical_exog = historical_exog.reindex(ts_data.index).fillna(0.0)
+
+                    with warnings.catch_warnings():
+                        warnings.simplefilter('ignore', SMValueWarning)
+                        sarimax_model = SARIMAX(
+                            ts_data,
+                            exog=historical_exog,
+                            order=(best_forecast.arima_p, best_forecast.arima_d, best_forecast.arima_q),
+                            seasonal_order=(0, 0, 0, 0),
+                            enforce_stationarity=False,
+                            enforce_invertibility=False
+                        )
+                        sarimax_fitted = sarimax_model.fit(disp=False, maxiter=100)
+
+                    sarimax_vals = pd.Series(
+                        sarimax_fitted.fittedvalues.values,
+                        index=ts_data.index[-len(sarimax_fitted.fittedvalues):]
+                    )
+                    sarimax_full.loc[sarimax_vals.index] = sarimax_vals.values
+
+            fit_start = max(0, len(ts_data) - fit_window)
+            fit_slice_index = ts_data.index[fit_start:]
+
+            model_fit_data = {
+                'labels': [idx.strftime('%b %d, %Y') for idx in fit_slice_index],
+                'actual': [float(v) for v in ts_data.iloc[fit_start:].tolist()],
+                'arima': [None if pd.isna(v) else float(v) for v in arima_full.iloc[fit_start:].tolist()],
+                'sarimax': [None if pd.isna(v) else float(v) for v in sarimax_full.iloc[fit_start:].tolist()],
+            }
+        except Exception:
+            pass
         
         # Prepare chart data
         chart_data = {
@@ -1196,6 +1403,7 @@ def get_best_forecast_auto(request):
                 'values': historical_data['quantity'].tolist(),
                 'labels': historical_labels
             },
+            'model_fit': model_fit_data,
             'forecast': {
                 'values': best_forecast.forecasted_demand,
                 'labels': forecast_labels
@@ -1218,6 +1426,9 @@ def get_best_forecast_auto(request):
             'medicine_id': best_medicine.id,
             'chart_data': chart_data,
             'model_info': chart_data['model_info'],
+            'sarimax': best_forecast.sarimax_results,
+            'model_comparison': best_forecast.model_comparison,
+            'exogenous_features': best_forecast.exogenous_features,
             'forecast_period': best_metrics['period'],
             'forecast_horizon': best_metrics['horizon'],
             'selection_reason': f"Best model selected based on composite score: {best_metrics['composite_score']:.2f} (MAPE: {best_metrics['mape']:.2f}%, RMSE: {best_metrics['rmse']:.2f})"
