@@ -32,7 +32,7 @@ from rest_framework import status
 
 from .models import DemandForecast, InventoryOptimization, SalesTrend, CustomerAnalytics, SystemMetrics
 from .services import ARIMAForecastingService, SupplyChainOptimizer
-from .step_analysis import generate_step_analysis
+from .step_analysis import generate_step_analysis, generate_sarimax_step_analysis
 from inventory.models import Medicine, Category
 from orders.models import Order, OrderItem
 from accounts.models import User
@@ -881,9 +881,15 @@ def arima_analysis_data(request):
         else:
             forecast_index = pd.date_range(start=history_series.index[-1] + pd.DateOffset(months=1), periods=12, freq='M')
 
+        # Include live current stock as a distinct data point.
+        current_stock = int(medicine.current_stock) if medicine.current_stock is not None else 0
+        last_history_label = history_series.index[-1].strftime('%b %d, %Y') if len(history_series) else 'Now'
+
         overview_series = {
             'history_labels': [idx.strftime('%b %d, %Y') for idx in history_series.index],
             'history_values': [float(v) for v in history_series.values.tolist()],
+            'current_stock': current_stock,
+            'current_stock_label': last_history_label,
             'forecast_labels': [idx.strftime('%b %d, %Y') for idx in forecast_index],
             'arima_forecast_values': [float(v) for v in forecast.tolist()],
             'sarimax_forecast_values': [float(v) for v in sarimax_forecast_values],
@@ -1016,5 +1022,89 @@ def arima_step_analysis_data(request):
         
         return Response(response_data)
         
+    except Exception as e:
+        return Response({'error': f'Step analysis failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@login_required
+def sarimax_step_by_step_view(request):
+    """
+    SARIMAX Step-by-Step Demonstration page with individual step visualizations.
+    """
+    if not (request.user.is_admin or request.user.is_staff):
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect('analytics:dashboard')
+
+    try:
+        medicines = Medicine.objects.filter(is_active=True).order_by('name')
+        medicine_id = request.GET.get('medicine_id', 4)
+        selected_medicine = get_object_or_404(Medicine, id=medicine_id)
+        period_type = 'monthly'
+        step = request.GET.get('step', '1')
+
+        context = {
+            'medicines': medicines,
+            'selected_medicine': selected_medicine,
+            'period_type': period_type,
+            'current_step': step,
+            'steps': ['1', '2', '3', '4', '5']
+        }
+        return render(request, 'analytics/sarimax_step_by_step.html', context)
+    except Exception as e:
+        messages.error(request, f"Error loading SARIMAX step-by-step demonstration: {str(e)}")
+        return redirect('analytics:dashboard')
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def sarimax_step_analysis_data(request):
+    """
+    API endpoint to get SARIMAX step-by-step analysis data and visualizations.
+    """
+    if not (request.user.is_admin or request.user.is_staff):
+        return Response({'error': 'You don\'t have permission to access this endpoint.'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        medicine_id = request.GET.get('medicine_id', 4)
+        period_type = 'monthly'
+        step = request.GET.get('step', '1')
+        medicine = get_object_or_404(Medicine, id=medicine_id)
+
+        service = ARIMAForecastingService()
+        data = service.prepare_sales_data(medicine_id, period_type)
+
+        if len(data) == 0:
+            return Response({'error': 'No data available for analysis'}, status=status.HTTP_400_BAD_REQUEST)
+
+        ts_data = data.set_index('date')['quantity']
+        ts_data = ts_data.fillna(ts_data.mean())
+
+        step_data = generate_sarimax_step_analysis(ts_data, step, service, medicine_id, period_type)
+
+        response_data = {
+            'medicine': {
+                'id': medicine.id,
+                'name': medicine.name,
+                'unit_price': float(medicine.unit_price)
+            },
+            'step': step,
+            'data_info': {
+                'total_points': len(data),
+                'date_range': {
+                    'start': data['date'].min().isoformat(),
+                    'end': data['date'].max().isoformat()
+                },
+                'statistics': {
+                    'mean': float(ts_data.mean()),
+                    'std': float(ts_data.std()),
+                    'min': float(ts_data.min()),
+                    'max': float(ts_data.max())
+                }
+            },
+            'analysis': step_data
+        }
+
+        return Response(response_data)
+
     except Exception as e:
         return Response({'error': f'Step analysis failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
