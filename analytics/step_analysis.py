@@ -7,8 +7,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import base64
 import io
+import warnings
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 from pmdarima import auto_arima
 
 
@@ -145,6 +147,168 @@ def generate_step_analysis(ts_data, step, service):
         step_data['error'] = f'Step {step} analysis failed: {str(e)}'
     
     return step_data
+
+
+def generate_sarimax_step_analysis(ts_data, step, service, medicine_id, period_type='monthly'):
+    """Generate analysis and visualization for SARIMAX step-by-step analysis."""
+    step_data = {'step': step}
+
+    try:
+        if step == '1':
+            adf_result = adfuller(ts_data.dropna())
+            step_data.update({
+                'title': 'STEP 1: Stationarity Testing',
+                'description': 'Testing if the time series data is stationary using Augmented Dickey-Fuller test',
+                'adf_statistic': adf_result[0],
+                'p_value': adf_result[1],
+                'critical_values': adf_result[4],
+                'is_stationary': adf_result[1] <= 0.05,
+                'conclusion': 'STATIONARY' if adf_result[1] <= 0.05 else 'NON-STATIONARY',
+                'chart': create_step1_chart(ts_data, adf_result)
+            })
+
+        elif step == '2':
+            if len(ts_data) >= 24:
+                decomposition = seasonal_decompose(ts_data, model='additive', period=12)
+                seasonal_strength = np.var(decomposition.seasonal) / np.var(ts_data)
+                step_data.update({
+                    'title': 'STEP 2: Seasonal Decomposition',
+                    'description': 'Decomposing the time series into trend, seasonal, and residual components',
+                    'trend_present': not decomposition.trend.isna().all(),
+                    'seasonal_present': not decomposition.seasonal.isna().all(),
+                    'residual_present': not decomposition.resid.isna().all(),
+                    'seasonal_strength': seasonal_strength,
+                    'strong_seasonal': seasonal_strength > 0.1,
+                    'chart': create_step2_chart(ts_data, decomposition)
+                })
+            else:
+                step_data.update({
+                    'title': 'STEP 2: Seasonal Decomposition',
+                    'description': 'Insufficient data for seasonal decomposition (need at least 24 data points)',
+                    'error': 'Insufficient data for seasonal decomposition'
+                })
+
+        elif step in {'3', '4', '5'}:
+            # Match Full Analytics SARIMAX flow:
+            # 1) select seasonal orders via auto_arima
+            # 2) fit SARIMAX with selected order/seasonal_order (no exogenous regressors)
+            arima_model = auto_arima(
+                ts_data,
+                start_p=0,
+                start_q=0,
+                max_p=5,
+                max_q=5,
+                seasonal=True,
+                m=12,
+                start_P=0,
+                start_Q=0,
+                max_P=2,
+                max_Q=2,
+                stepwise=True,
+                suppress_warnings=True,
+                error_action='ignore',
+                trace=False,
+            )
+
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                sarimax_model = SARIMAX(
+                    ts_data,
+                    order=arima_model.order,
+                    seasonal_order=arima_model.seasonal_order,
+                    enforce_stationarity=False,
+                    enforce_invertibility=False,
+                )
+                sarimax_fitted = sarimax_model.fit(disp=False, maxiter=100)
+
+            if step == '3':
+                step_data.update({
+                    'title': 'STEP 3: SARIMAX Model Selection',
+                    'description': 'Selecting SARIMAX orders using Auto ARIMA seasonal search, then fitting SARIMAX with the selected structure',
+                    'order': arima_model.order,
+                    'seasonal_order': arima_model.seasonal_order,
+                    'aic': float(arima_model.aic()),
+                    'bic': float(arima_model.bic()),
+                    'total_params': len(sarimax_fitted.params),
+                    'chart': create_sarimax_step3_chart(ts_data, sarimax_fitted)
+                })
+            elif step == '4':
+                fitted_values = sarimax_fitted.fittedvalues
+                actual_values = ts_data.iloc[len(ts_data) - len(fitted_values):].values
+                metrics = service.calculate_model_metrics(actual_values, fitted_values.values)
+                residuals = ts_data - fitted_values
+                step_data.update({
+                    'title': 'STEP 4: Model Evaluation',
+                    'description': 'Evaluating SARIMAX in-sample fit using RMSE, MAE, and MAPE',
+                    'rmse': metrics['rmse'],
+                    'mae': metrics['mae'],
+                    'mape': metrics['mape'],
+                    'aic': float(sarimax_fitted.aic),
+                    'bic': float(sarimax_fitted.bic),
+                    'performance': 'Excellent' if metrics['mape'] < 5 else 'Good' if metrics['mape'] < 15 else 'Fair' if metrics['mape'] < 25 else 'Poor',
+                    'chart': create_step4_chart(ts_data, fitted_values, residuals)
+                })
+            else:
+                forecast_object = sarimax_fitted.get_forecast(steps=12)
+                forecast = forecast_object.predicted_mean
+                conf_int = forecast_object.conf_int()
+                step_data.update({
+                    'title': 'STEP 5: Forecast Generation',
+                    'description': 'Generating 12-month SARIMAX forecasts with confidence intervals',
+                    'forecast_values': [float(value) if np.isfinite(value) else 0.0 for value in forecast.tolist()],
+                    'confidence_intervals': conf_int.values.tolist(),
+                    'forecast_mean': float(np.mean(forecast)),
+                    'forecast_std': float(np.std(forecast)),
+                    'forecast_min': float(np.min(forecast)),
+                    'forecast_max': float(np.max(forecast)),
+                    'chart': create_step5_chart(ts_data, forecast, conf_int.values)
+                })
+
+    except Exception as e:
+        step_data['error'] = f'Step {step} analysis failed: {str(e)}'
+
+    return step_data
+
+
+def create_sarimax_step3_chart(ts_data, fitted_model):
+    """Create chart for SARIMAX Step 3: Model Selection"""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+    ax1.axis('off')
+    ax1.text(0.05, 0.95, 'SARIMAX Model Selection Process', fontsize=14, fontweight='bold', transform=ax1.transAxes)
+    ax1.text(0.05, 0.8, f"""Selection Strategy:
+• Seasonal order search via Auto ARIMA
+• SARIMAX fit uses selected ARIMA and seasonal orders
+• AIC/BIC-guided specification
+
+Model Quality:
+• AIC: {fitted_model.aic:.3f}
+• BIC: {fitted_model.bic:.3f}
+• Parameters estimated: {len(fitted_model.params)}""", fontsize=11, transform=ax1.transAxes, verticalalignment='top')
+
+    ax2.axis('off')
+    ax2.text(0.05, 0.95, 'Selected SARIMAX Model', fontsize=14, fontweight='bold', transform=ax2.transAxes)
+    order = fitted_model.model.order
+    seasonal_order = fitted_model.model.seasonal_order
+    model_text = f"""Best Model Found:
+SARIMAX{order} x {seasonal_order}
+
+Model Parameters:
+• Non-seasonal: SARIMAX({order[0]},{order[1]},{order[2]})
+• Seasonal: ({seasonal_order[0]},{seasonal_order[1]},{seasonal_order[2]})[{seasonal_order[3]}]
+• Total Parameters: {len(fitted_model.params)}
+"""
+    ax2.text(0.05, 0.8, model_text, fontsize=11, transform=ax2.transAxes, verticalalignment='top', fontfamily='monospace')
+
+    plt.tight_layout()
+
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')
+    buffer.seek(0)
+    image_base64 = base64.b64encode(buffer.getvalue()).decode()
+    plt.close()
+
+    return f"data:image/png;base64,{image_base64}"
 
 
 def create_step1_chart(ts_data, adf_result):

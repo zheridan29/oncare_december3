@@ -46,18 +46,18 @@
                                     <li><a class="dropdown-item" href="{% url 'analytics:dashboard' %}">
                                         <i class="fas fa-chart-bar me-2"></i>Full Analytics
                                     </a></li>
-                                    <li><a class="dropdown-item" href="{% url 'analytics:forecast_only' %}">
-                                        <i class="fas fa-chart-line me-2"></i>Forecast View
-                                    </a></li>
                                     <li><a class="dropdown-item" href="{% url 'analytics:model_evaluation' %}">
                                         <i class="fas fa-cogs me-2"></i>Model Evaluation
                                     </a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><a class="dropdown-item" href="{% url 'analytics:arima_demonstration' %}">
-                                        <i class="fas fa-microscope me-2"></i>ARIMA Demonstration
+                                        <i class="fas fa-microscope me-2"></i>Forecast Analytics
                                     </a></li>
                                     <li><a class="dropdown-item" href="{% url 'analytics:arima_step_by_step' %}">
                                         <i class="fas fa-list-ol me-2"></i>ARIMA Step-by-Step
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="{% url 'analytics:sarimax_step_by_step' %}">
+                                        <i class="fas fa-project-diagram me-2"></i>SARIMAX Step-by-Step
                                     </a></li>
                                 </ul>
                             </li>
@@ -120,11 +120,6 @@
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'orders:pharmacist_order_list' %}">
                                     <i class="fas fa-shopping-cart me-1"></i>All Orders
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'analytics:forecast_only' %}">
-                                    <i class="fas fa-chart-line me-1"></i>Forecast Analytics
                                 </a>
                             </li>
                             <li class="nav-item">

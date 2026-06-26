@@ -53,6 +53,50 @@
     .btn-group .btn.active {
         box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
     }
+
+    .comparison-panel {
+        border-left: 4px solid #0d6efd;
+    }
+
+    .metric-chip {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .metric-chip.good {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .metric-chip.warn {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    .metric-chip.bad {
+        background: #f8d7da;
+        color: #842029;
+    }
+
+    .recommendation-badge {
+        padding: 0.35rem 0.75rem;
+        border-radius: 0.5rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+    }
+
+    .recommendation-badge.arima {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .recommendation-badge.sarimax {
+        background: #cfe2ff;
+        color: #084298;
+    }
 </style>
 {% endblock %}
 
@@ -168,11 +212,12 @@
                         <a href="{% url 'analytics:model_evaluation' %}" class="btn btn-info me-2">
                             <i class="fas fa-chart-bar me-1"></i>Model Evaluation
                         </a>
-                        {% if user.is_admin %}
-                        <a href="{% url 'analytics:forecast_only' %}" class="btn btn-success">
-                            <i class="fas fa-chart-line me-1"></i>Forecast View
+                        <a href="{% url 'analytics:forecast_decision' %}" class="btn btn-primary me-2">
+                            <i class="fas fa-balance-scale me-1"></i>ARIMA vs SARIMAX
                         </a>
-                        {% endif %}
+                        <a href="{% url 'analytics:sarimax_step_by_step' %}" class="btn btn-secondary me-2">
+                            <i class="fas fa-project-diagram me-1"></i>SARIMAX Step-by-Step
+                        </a>
                     </div>
                 </div>
             </div>
@@ -224,6 +269,71 @@
             </h5>
             <div class="chart-container" style="height: 400px;">
                 <canvas id="accuracyChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ARIMA vs SARIMAX Comparison -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card comparison-panel">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-balance-scale me-2"></i>ARIMA vs SARIMAX Comparison
+                </h5>
+                <span id="recommendedModelBadge" class="recommendation-badge" style="display:none;"></span>
+            </div>
+            <div class="card-body">
+                <div id="comparisonEmptyState" class="text-muted">
+                    Generate a forecast or click View Details on a forecast row to display ARIMA and SARIMAX comparison.
+                </div>
+                <div id="comparisonContent" style="display:none;">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <h6 class="mb-2">Model Setup</h6>
+                            <div><strong>ARIMA Order:</strong> <span id="cmpArimaOrder">-</span></div>
+                            <div><strong>SARIMAX Order:</strong> <span id="cmpSarimaxOrder">-</span></div>
+                            <div><strong>Seasonal:</strong> <span id="cmpSarimaxSeasonal">-</span></div>
+                            <div class="mt-2"><strong>Features:</strong></div>
+                            <div id="cmpFeatures" class="small text-muted">-</div>
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Metric</th>
+                                            <th>ARIMA</th>
+                                            <th>SARIMAX</th>
+                                            <th>Improvement</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>MAPE</td>
+                                            <td id="cmpArimaMape">-</td>
+                                            <td id="cmpSarimaxMape">-</td>
+                                            <td id="cmpImpMape">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td>RMSE</td>
+                                            <td id="cmpArimaRmse">-</td>
+                                            <td id="cmpSarimaxRmse">-</td>
+                                            <td id="cmpImpRmse">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td>MAE</td>
+                                            <td id="cmpArimaMae">-</td>
+                                            <td id="cmpSarimaxMae">-</td>
+                                            <td id="cmpImpMae">-</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -614,6 +724,9 @@ function loadSpecificMedicineAnalytics(medicineId) {
             updateInventoryOptimization(data);
         }
     });
+
+    // Load latest dual-model comparison for the selected medicine if available
+    loadLatestModelComparison(medicineName);
 }
 
 function loadGeneralAnalytics() {
@@ -621,6 +734,7 @@ function loadGeneralAnalytics() {
     $('#chartTitle').text('Demand Forecast Trends');
     loadDemandForecastChart();
     loadAccuracyChart();
+    resetModelComparisonPanel();
 }
 
 function updateDemandForecastChart(data) {
@@ -809,6 +923,123 @@ function updateInventoryOptimization(data) {
     }
 }
 
+function formatMetric(value, decimals = 2, suffix = '') {
+    if (value === null || value === undefined || value === '' || Number.isNaN(Number(value))) {
+        return '-';
+    }
+    return `${Number(value).toFixed(decimals)}${suffix}`;
+}
+
+function formatImprovement(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return '-';
+    }
+    const val = Number(value);
+    const arrow = val > 0 ? '↓' : (val < 0 ? '↑' : '→');
+    return `${arrow} ${Math.abs(val).toFixed(1)}%`;
+}
+
+function resetModelComparisonPanel() {
+    $('#comparisonContent').hide();
+    $('#comparisonEmptyState').show();
+    $('#recommendedModelBadge').hide().removeClass('arima sarimax').text('');
+}
+
+function updateModelComparisonPanel(data) {
+    const comparison = data.model_comparison || {};
+    const sarimax = data.sarimax || {};
+    const modelInfo = data.model_info || data.model_metrics || {};
+
+    const arima = comparison.arima || {};
+    const sarimaxCmp = comparison.sarimax || {};
+    const improvement = comparison.improvement_pct || {};
+
+    const arimaOrder = modelInfo.arima_params
+        ? modelInfo.arima_params
+        : `ARIMA(${data.arima_p ?? '-'},${data.arima_d ?? '-'},${data.arima_q ?? '-'})`;
+
+    const sarimaxOrderObj = sarimax.order || {};
+    const seasonalOrderObj = sarimax.seasonal_order || {};
+
+    const sarimaxOrder = (sarimaxOrderObj.p !== undefined)
+        ? `ARIMA(${sarimaxOrderObj.p},${sarimaxOrderObj.d},${sarimaxOrderObj.q})`
+        : '-';
+    const sarimaxSeasonal = (seasonalOrderObj.P !== undefined)
+        ? `(${seasonalOrderObj.P},${seasonalOrderObj.D},${seasonalOrderObj.Q},${seasonalOrderObj.m})`
+        : '-';
+
+    const arimaMape = arima.mape ?? modelInfo.mape;
+    const arimaRmse = arima.rmse ?? modelInfo.rmse;
+    const arimaMae = arima.mae ?? modelInfo.mae;
+
+    const sarimaxMape = sarimaxCmp.mape ?? sarimax.mape;
+    const sarimaxRmse = sarimaxCmp.rmse ?? sarimax.rmse;
+    const sarimaxMae = sarimaxCmp.mae ?? sarimax.mae;
+
+    const features = data.exogenous_features || sarimax.features_used || [];
+
+    $('#cmpArimaOrder').text(arimaOrder || '-');
+    $('#cmpSarimaxOrder').text(sarimaxOrder);
+    $('#cmpSarimaxSeasonal').text(sarimaxSeasonal);
+    $('#cmpFeatures').text(features.length ? features.join(', ') : 'No exogenous features recorded');
+
+    $('#cmpArimaMape').text(formatMetric(arimaMape, 2, '%'));
+    $('#cmpSarimaxMape').text(formatMetric(sarimaxMape, 2, '%'));
+    $('#cmpImpMape').text(formatImprovement(improvement.mape));
+
+    $('#cmpArimaRmse').text(formatMetric(arimaRmse, 4));
+    $('#cmpSarimaxRmse').text(formatMetric(sarimaxRmse, 4));
+    $('#cmpImpRmse').text(formatImprovement(improvement.rmse));
+
+    $('#cmpArimaMae').text(formatMetric(arimaMae, 4));
+    $('#cmpSarimaxMae').text(formatMetric(sarimaxMae, 4));
+    $('#cmpImpMae').text(formatImprovement(improvement.mae));
+
+    const recommended = (comparison.recommended_model || '').toLowerCase();
+    if (recommended === 'arima' || recommended === 'sarimax') {
+        $('#recommendedModelBadge')
+            .removeClass('arima sarimax')
+            .addClass(recommended)
+            .text(`Recommended: ${recommended.toUpperCase()}`)
+            .show();
+    } else {
+        $('#recommendedModelBadge').hide().removeClass('arima sarimax').text('');
+    }
+
+    $('#comparisonEmptyState').hide();
+    $('#comparisonContent').show();
+}
+
+function loadLatestModelComparison(medicineName) {
+    $.ajax({
+        url: '/analytics/api/forecasts/',
+        method: 'GET',
+        success: function(response) {
+            const forecasts = response.forecasts || [];
+            const match = forecasts.find(f => f.medicine_name === medicineName);
+
+            if (!match) {
+                resetModelComparisonPanel();
+                return;
+            }
+
+            $.ajax({
+                url: `/analytics/api/forecast/${match.id}/data/`,
+                method: 'GET',
+                success: function(data) {
+                    updateModelComparisonPanel(data);
+                },
+                error: function() {
+                    resetModelComparisonPanel();
+                }
+            });
+        },
+        error: function() {
+            resetModelComparisonPanel();
+        }
+    });
+}
+
 
 function showAlert(type, message) {
     const alertClass = type === 'success' ? 'alert-success' : 
@@ -905,9 +1136,19 @@ function deleteForecast(forecastId, medicineName) {
 }
 
 function viewForecastDetails(forecastId) {
-    // Show forecast details modal or navigate to details page
-    showAlert('info', `Viewing details for forecast ID: ${forecastId}`);
-    // TODO: Implement detailed forecast view
+    $.ajax({
+        url: `/analytics/api/forecast/${forecastId}/data/`,
+        method: 'GET',
+        success: function(data) {
+            updateDemandForecastChart(data);
+            updateModelComparisonPanel(data);
+            showAlert('success', `Loaded forecast details for ID: ${forecastId}`);
+        },
+        error: function(xhr) {
+            const msg = xhr.responseJSON?.error || 'Unable to load forecast details';
+            showAlert('danger', msg);
+        }
+    });
 }
 
 function refreshRecentForecasts() {
@@ -1008,6 +1249,7 @@ function generateForecast() {
             };
             
             updateDemandForecastChart(chartData);
+            updateModelComparisonPanel(response);
             
             // Update chart title
             $('#chartTitle').text(`Analytics for ${response.medicine_name}`);

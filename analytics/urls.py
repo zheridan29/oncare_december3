@@ -6,10 +6,12 @@ app_name = 'analytics'
 urlpatterns = [
     # Dashboard views
     path('', views.AnalyticsDashboardView.as_view(), name='dashboard'),
+    path('forecast-decision/', views.ForecastDecisionView.as_view(), name='forecast_decision'),
     path('forecast-only/', views.ForecastOnlyView.as_view(), name='forecast_only'),
     path('model-evaluation/', views.ModelEvaluationView.as_view(), name='model_evaluation'),
     path('arima-demonstration/', views.arima_demonstration_view, name='arima_demonstration'),
     path('arima-step-by-step/', views.arima_step_by_step_view, name='arima_step_by_step'),
+    path('sarimax-step-by-step/', views.sarimax_step_by_step_view, name='sarimax_step_by_step'),
     
     # API endpoints
     path('api/forecast/generate/', api_views.generate_forecast, name='api_generate_forecast'),
@@ -28,4 +30,5 @@ urlpatterns = [
     path('api/forecast/best-auto/', api_views.get_best_forecast_auto, name='api_best_forecast_auto'),
     path('api/arima-analysis/', views.arima_analysis_data, name='api_arima_analysis'),
     path('api/arima-step-analysis/', views.arima_step_analysis_data, name='api_arima_step_analysis'),
+    path('api/sarimax-step-analysis/', views.sarimax_step_analysis_data, name='api_sarimax_step_analysis'),
 ]

@@ -215,6 +215,24 @@
         background-color: #f8d7da;
         color: #721c24;
     }
+
+    .recommendation-badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+
+    .recommendation-badge.arima {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .recommendation-badge.sarimax {
+        background: #cfe2ff;
+        color: #084298;
+    }
     
     .forecast-values {
         background: #f8f9fa;
@@ -460,6 +478,63 @@
                 <div class="step-description" id="stepDescription">-</div>
             </div>
             <div class="step-content">
+                <!-- ARIMA vs SARIMAX Comparison -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h5>ARIMA vs SARIMAX (Production Forecast)</h5>
+                        <div class="analysis-text">
+                            <div id="dualModelEmpty" class="text-muted">
+                                Run analysis to load the latest forecast comparison for the selected medicine.
+                            </div>
+                            <div id="dualModelContent" style="display:none;">
+                                <div class="row mb-2">
+                                    <div class="col-md-8">
+                                        <div><strong>ARIMA Order:</strong> <span id="cmpArimaOrder">-</span></div>
+                                        <div><strong>SARIMAX Order:</strong> <span id="cmpSarimaxOrder">-</span></div>
+                                        <div><strong>Seasonal Order:</strong> <span id="cmpSeasonalOrder">-</span></div>
+                                        <div><strong>Exogenous Features:</strong> <span id="cmpFeatures">-</span></div>
+                                    </div>
+                                    <div class="col-md-4 text-md-end mt-2 mt-md-0">
+                                        <span id="cmpRecommended" class="recommendation-badge" style="display:none;"></span>
+                                    </div>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Metric</th>
+                                                <th>ARIMA</th>
+                                                <th>SARIMAX</th>
+                                                <th>Improvement</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>MAPE</td>
+                                                <td id="cmpArimaMape">-</td>
+                                                <td id="cmpSarimaxMape">-</td>
+                                                <td id="cmpImpMape">-</td>
+                                            </tr>
+                                            <tr>
+                                                <td>RMSE</td>
+                                                <td id="cmpArimaRmse">-</td>
+                                                <td id="cmpSarimaxRmse">-</td>
+                                                <td id="cmpImpRmse">-</td>
+                                            </tr>
+                                            <tr>
+                                                <td>MAE</td>
+                                                <td id="cmpArimaMae">-</td>
+                                                <td id="cmpSarimaxMae">-</td>
+                                                <td id="cmpImpMae">-</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Data Information -->
                 <div class="row mb-4">
                     <div class="col-12">
@@ -507,6 +582,90 @@
 <script>
 let currentStepData = null;
 
+function formatValue(value, decimals = 2, suffix = '') {
+    if (value === null || value === undefined || value === '' || Number.isNaN(Number(value))) {
+        return '-';
+    }
+    return `${Number(value).toFixed(decimals)}${suffix}`;
+}
+
+function formatImprovement(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return '-';
+    }
+    const numeric = Number(value);
+    const arrow = numeric > 0 ? '↓' : (numeric < 0 ? '↑' : '→');
+    return `${arrow} ${Math.abs(numeric).toFixed(1)}%`;
+}
+
+function resetDualModelPanel(message = 'Run analysis to load the latest forecast comparison for the selected medicine.') {
+    document.getElementById('dualModelEmpty').textContent = message;
+    document.getElementById('dualModelEmpty').style.display = 'block';
+    document.getElementById('dualModelContent').style.display = 'none';
+    const rec = document.getElementById('cmpRecommended');
+    rec.style.display = 'none';
+    rec.className = 'recommendation-badge';
+    rec.textContent = '';
+}
+
+async function loadDualModelComparison(medicineId) {
+    try {
+        const response = await fetch(`/analytics/api/forecast/best-auto/?medicine_id=${medicineId}`);
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+            resetDualModelPanel(data.error || 'No forecast comparison available for this medicine yet.');
+            return;
+        }
+
+        const comparison = data.model_comparison || {};
+        const sarimax = data.sarimax || {};
+        const arima = comparison.arima || {};
+        const sarimaxCmp = comparison.sarimax || {};
+        const improvement = comparison.improvement_pct || {};
+
+        document.getElementById('cmpArimaOrder').textContent = data.model_info?.arima_params || '-';
+
+        const so = sarimax.order || {};
+        const sso = sarimax.seasonal_order || {};
+        document.getElementById('cmpSarimaxOrder').textContent =
+            (so.p !== undefined) ? `ARIMA(${so.p},${so.d},${so.q})` : '-';
+        document.getElementById('cmpSeasonalOrder').textContent =
+            (sso.P !== undefined) ? `(${sso.P},${sso.D},${sso.Q},${sso.m})` : '-';
+
+        const features = data.exogenous_features || sarimax.features_used || [];
+        document.getElementById('cmpFeatures').textContent =
+            features.length ? features.join(', ') : 'No exogenous features recorded';
+
+        document.getElementById('cmpArimaMape').textContent = formatValue(arima.mape ?? data.model_info?.mape, 2, '%');
+        document.getElementById('cmpSarimaxMape').textContent = formatValue(sarimaxCmp.mape ?? sarimax.mape, 2, '%');
+        document.getElementById('cmpImpMape').textContent = formatImprovement(improvement.mape);
+
+        document.getElementById('cmpArimaRmse').textContent = formatValue(arima.rmse ?? data.model_info?.rmse, 4);
+        document.getElementById('cmpSarimaxRmse').textContent = formatValue(sarimaxCmp.rmse ?? sarimax.rmse, 4);
+        document.getElementById('cmpImpRmse').textContent = formatImprovement(improvement.rmse);
+
+        document.getElementById('cmpArimaMae').textContent = formatValue(arima.mae ?? data.model_info?.mae, 4);
+        document.getElementById('cmpSarimaxMae').textContent = formatValue(sarimaxCmp.mae ?? sarimax.mae, 4);
+        document.getElementById('cmpImpMae').textContent = formatImprovement(improvement.mae);
+
+        const recommended = (comparison.recommended_model || '').toLowerCase();
+        const rec = document.getElementById('cmpRecommended');
+        if (recommended === 'arima' || recommended === 'sarimax') {
+            rec.textContent = `Recommended: ${recommended.toUpperCase()}`;
+            rec.className = `recommendation-badge ${recommended}`;
+            rec.style.display = 'inline-block';
+        } else {
+            rec.style.display = 'none';
+        }
+
+        document.getElementById('dualModelEmpty').style.display = 'none';
+        document.getElementById('dualModelContent').style.display = 'block';
+    } catch (error) {
+        resetDualModelPanel('Unable to load ARIMA vs SARIMAX comparison.');
+    }
+}
+
 // Run step analysis
 async function runStepAnalysis() {
     const medicineId = document.getElementById('medicineSelect').value;
@@ -527,6 +686,7 @@ async function runStepAnalysis() {
         
         currentStepData = data;
         displayStepResults(data);
+        await loadDualModelComparison(medicineId);
         
         // Hide loading and show results
         document.getElementById('loadingSection').style.display = 'none';
@@ -536,6 +696,7 @@ async function runStepAnalysis() {
         console.error('Step analysis failed:', error);
         alert('Step analysis failed: ' + error.message);
         document.getElementById('loadingSection').style.display = 'none';
+        resetDualModelPanel();
     }
 }
 
@@ -754,6 +915,7 @@ document.getElementById('scrollToTop').addEventListener('click', function() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
+    resetDualModelPanel();
     // Auto-run analysis on page load
     runStepAnalysis();
     
