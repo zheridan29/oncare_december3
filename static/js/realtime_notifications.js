@@ -30,6 +30,10 @@ class RealtimeNotifications {
         this.notificationWidget = document.getElementById('notifications-widget');
         this.notificationCount = document.getElementById('notification-count');
         
+        console.log('Real-time notifications system initialized');
+        console.log('Notification widget found:', !!this.notificationWidget);
+        console.log('Notification count element found:', !!this.notificationCount);
+        
         // Attach clear all handler
         this.attachClearAllHandler();
         
@@ -42,8 +46,10 @@ class RealtimeNotifications {
         // Stop polling when page is hidden (to save resources)
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
+                console.log('Page hidden - stopping notification polling');
                 this.stopPolling();
             } else {
+                console.log('Page visible - resuming notification polling');
                 this.startPolling();
                 this.fetchNotifications(); // Immediately check when page becomes visible
             }
@@ -53,6 +59,7 @@ class RealtimeNotifications {
     startPolling() {
         if (this.isPolling) return;
         
+        console.log('Starting notification polling every', this.pollInterval, 'ms');
         this.isPolling = true;
         this.pollTimer = setInterval(() => {
             this.fetchNotifications(true);
@@ -77,8 +84,10 @@ class RealtimeNotifications {
             if (incremental && this.lastCheckTime) {
                 params.append('last_check', this.lastCheckTime);
                 params.append('limit', '5');
+                console.log('Fetching incremental notifications since:', this.lastCheckTime);
             } else {
                 params.append('limit', '10');
+                console.log('Fetching initial/full notifications');
             }
             
             url += '?' + params.toString();
@@ -91,11 +100,14 @@ class RealtimeNotifications {
                 credentials: 'same-origin'
             });
             
+            console.log('Notification API Response Status:', response.status);
+            
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             const data = await response.json();
+            console.log('Notifications API Response:', data);
             
             // Update last check time
             if (data.latest_check_time) {

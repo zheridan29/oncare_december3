@@ -32,6 +32,9 @@ class DemandForecast(models.Model):
     # Forecast results
     forecasted_demand = models.JSONField()  # array of forecasted values
     confidence_intervals = models.JSONField()  # upper and lower bounds
+    sarimax_results = models.JSONField(default=dict, blank=True)
+    model_comparison = models.JSONField(default=dict, blank=True)
+    exogenous_features = models.JSONField(default=list, blank=True)
     
     # Historical data used for training
     training_data_start = models.DateField()

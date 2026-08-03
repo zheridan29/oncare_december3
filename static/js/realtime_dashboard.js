@@ -27,8 +27,11 @@ class RealtimeDashboard {
         // Check if we're on the pharmacist dashboard page
         const dashboardElement = document.getElementById('pharmacist-dashboard');
         if (!dashboardElement) {
+            console.log('Pharmacist dashboard element not found, skipping real-time updates');
             return; // Not on the dashboard page
         }
+        
+        console.log('Pharmacist dashboard element found, starting real-time updates');
         
         // Initial fetch
         this.fetchDashboardData();
@@ -39,6 +42,7 @@ class RealtimeDashboard {
         // Re-fetch when window regains focus (e.g., tab switch)
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
+                console.log('Page became visible, fetching fresh data');
                 this.fetchDashboardData(); // Immediately check when page becomes visible
             }
         });
@@ -52,19 +56,33 @@ class RealtimeDashboard {
         try {
             this.isPolling = true;
             
+            console.log('Fetching dashboard data from:', this.apiUrl);
+            
+            // Get CSRF token from cookie
+            const csrfToken = this.getCookie('csrftoken');
+            const headers = {
+                'X-Requested-With': 'XMLHttpRequest',
+            };
+            if (csrfToken) {
+                headers['X-CSRFToken'] = csrfToken;
+            }
+            
             const response = await fetch(this.apiUrl, {
                 method: 'GET',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
+                headers: headers,
                 credentials: 'same-origin'
             });
             
+            console.log('API Response Status:', response.status);
+            
             if (!response.ok) {
+                const errorText = await response.text();
+                console.error('API Error Response:', errorText);
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             const data = await response.json();
+            console.log('Dashboard data received:', data);
             
             // Update dashboard with new data
             this.updateDashboard(data);
@@ -75,6 +93,21 @@ class RealtimeDashboard {
         } finally {
             this.isPolling = false;
         }
+    }
+    
+    getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
     }
     
     updateDashboard(data) {
@@ -251,8 +284,7 @@ class RealtimeDashboard {
 }
 
 // Initialize real-time dashboard when script loads
-if (document.getElementById('pharmacist-dashboard')) {
-    new RealtimeDashboard();
-}
+console.log('Real-time dashboard script loaded');
+new RealtimeDashboard();
 
 

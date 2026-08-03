@@ -1008,7 +1008,7 @@ class OrderStatusUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
         # Save the form - this will use get_success_url() for redirect
         response = super().form_valid(form)
         
-        # Create status history if status changed
+        # Create status history if status or payment status changed
         if old_status != self.object.status or old_payment_status != self.object.payment_status:
             from .models import OrderStatusHistory
             OrderStatusHistory.objects.create(
@@ -1019,6 +1019,17 @@ class OrderStatusUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
                 new_payment_status=self.object.payment_status,
                 notes=form.cleaned_data.get('internal_notes', ''),
                 changed_by=self.request.user
+            )
+
+        # Notify affected users when order status changes.
+        # This ensures Sales Rep receives real-time status notifications.
+        if old_status != self.object.status:
+            from common.services import NotificationService
+            NotificationService.notify_order_status_change(
+                order=self.object,
+                old_status=old_status,
+                new_status=self.object.status,
+                changed_by_user=self.request.user,
             )
         
         messages.success(self.request, 'Order status updated successfully!')
@@ -1063,6 +1074,11 @@ class OrderFulfillmentDashboardView(LoginRequiredMixin, UserPassesTestMixin, Tem
                 'count': Order.objects.filter(status=status_code).count()
             }
         
+        # Get notifications for current user (only unread for dashboard widget)
+        from common.services import NotificationService
+        notifications = NotificationService.get_recent_notifications(self.request.user, limit=5, unread_only=True)
+        unread_notifications_count = NotificationService.get_unread_count(self.request.user)
+        
         context.update({
             'total_orders': total_orders,
             'pending_orders': pending_orders,
@@ -1071,6 +1087,8 @@ class OrderFulfillmentDashboardView(LoginRequiredMixin, UserPassesTestMixin, Tem
             'delivered_orders': delivered_orders,
             'recent_orders': recent_orders,
             'orders_by_status': orders_by_status,
+            'notifications': notifications,
+            'unread_notifications_count': unread_notifications_count,
         })
         
         return context
@@ -1228,7 +1246,7 @@ class SalesRepDashboardAPIView(APIView):
         paginator = Paginator(filtered_orders, 20)
         page_obj = paginator.get_page(page)
         
-        # Build orders data
+        # Build orders data for order list page updates
         orders_data = []
         for order in page_obj:
             orders_data.append({
@@ -1242,6 +1260,20 @@ class SalesRepDashboardAPIView(APIView):
                 'total_amount': float(order.total_amount),
                 'created_at': order.created_at.isoformat(),
                 'created_at_display': order.created_at.strftime('%b %d, %Y %H:%M'),
+            })
+
+        # Build recent orders data for dashboard card/table updates
+        recent_orders_qs = user_orders.order_by('-created_at')[:5]
+        recent_orders_data = []
+        for order in recent_orders_qs:
+            recent_orders_data.append({
+                'id': order.id,
+                'order_number': order.order_number,
+                'status': order.status,
+                'status_display': order.get_status_display(),
+                'total_amount': float(order.total_amount),
+                'created_at': order.created_at.isoformat(),
+                'created_at_display': order.created_at.strftime('%b %d, %Y'),
             })
         
         return Response({
@@ -1258,6 +1290,7 @@ class SalesRepDashboardAPIView(APIView):
             },
             'orders_by_status': orders_by_status,
             'orders': orders_data,
+            'recent_orders': recent_orders_data,
             'pagination': {
                 'current_page': page_obj.number,
                 'total_pages': paginator.num_pages,

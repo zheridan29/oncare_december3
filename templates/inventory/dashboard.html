@@ -4,6 +4,7 @@
 {% block title %}Inventory Dashboard - OnCare{% endblock %}
 
 {% block content %}
+<div id="inventory-dashboard">
 <div class="row">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -27,7 +28,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h4 class="card-title">{{ total_medicines|default:0 }}</h4>
+                        <h4 class="card-title" id="stat-total-medicines">{{ total_medicines|default:0 }}</h4>
                         <p class="card-text">Total Medicines</p>
                     </div>
                     <div class="align-self-center">
@@ -43,7 +44,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h4 class="card-title">{{ low_stock_medicines|default:0 }}</h4>
+                            <h4 class="card-title" id="stat-low-stock">{{ low_stock_medicines|default:0 }}</h4>
                             <p class="card-text">Low Stock</p>
                         </div>
                         <div class="align-self-center">
@@ -55,6 +56,7 @@
         </a>
     </div>
     <div class="col-md-3">
+<<<<<<< HEAD
         <a href="{% url 'orders:pharmacist_dashboard' %}" class="text-decoration-none">
             <div class="card bg-success text-white">
                 <div class="card-body">
@@ -66,6 +68,17 @@
                         <div class="align-self-center">
                             <i class="fas fa-tasks fa-2x"></i>
                         </div>
+=======
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title" id="stat-pending-orders">{{ pending_orders|default:0 }}</h4>
+                        <p class="card-text">Pending Orders</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-hourglass-half fa-2x"></i>
+>>>>>>> fd3fd0165ebb630b70cd8adacc8c82e542e7249b
                     </div>
                 </div>
             </div>
@@ -76,7 +89,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h4 class="card-title">{{ total_manufacturers|default:0 }}</h4>
+                        <h4 class="card-title" id="stat-total-manufacturers">{{ total_manufacturers|default:0 }}</h4>
                         <p class="card-text">Manufacturers</p>
                     </div>
                     <div class="align-self-center">
@@ -127,13 +140,7 @@
 </div>
 
 <!-- Notifications -->
-{% if notifications %}
-<div class="row mb-4">
-    <div class="col-12">
-        {% include 'common/notifications_widget.html' %}
-    </div>
-</div>
-{% endif %}
+{% include 'common/notifications_widget.html' %}
 
 <!-- Quick Actions -->
 <div class="row">
@@ -186,6 +193,11 @@
         </div>
     </div>
 </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/realtime_inventory_dashboard.js' %}"></script>
 {% endblock %}
 
 

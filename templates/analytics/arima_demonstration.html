@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}ARIMA Demonstration - Analytics{% endblock %}
+{% block title %}Forecast Analytics - Analytics{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -39,6 +39,29 @@
         padding: 20px;
         margin: 20px 0;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .chart-image-wrap {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 12px;
+        min-height: 260px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: auto;
+    }
+
+    .chart-image {
+        display: block;
+        max-width: 100%;
+        width: auto;
+        height: auto;
+        max-height: 560px;
+        margin: 0 auto;
+        object-fit: contain;
     }
     
     .chart-title {
@@ -125,6 +148,30 @@
         color: #007bff;
         font-family: monospace;
     }
+
+    .recommendation-badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+
+    .recommendation-badge.arima {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .recommendation-badge.sarimax {
+        background: #cfe2ff;
+        color: #084298;
+    }
+
+    .overview-chart-wrap {
+        position: relative;
+        width: 100%;
+        height: 320px;
+    }
 </style>
 {% endblock %}
 
@@ -134,7 +181,7 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h1 class="h3 mb-0 text-gray-800">
-                    <i class="fas fa-chart-line"></i> ARIMA Demonstration
+                    <i class="fas fa-chart-line"></i> Forecast Analytics
                 </h1>
                 <div class="btn-group" role="group">
                     <button type="button" class="btn btn-primary" onclick="runAnalysis()">
@@ -204,6 +251,19 @@
 
     <!-- Analysis Results -->
     <div id="analysisResults" style="display: none;">
+
+        <div class="analysis-section">
+            <h3 class="section-title">Forecast Overview</h3>
+            <div class="analysis-card">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0">Current vs Forecasted Values</h5>
+                    <span class="mini-label">Actual, ARIMA Forecast, SARIMAX Forecast</span>
+                </div>
+                <div class="overview-chart-wrap">
+                    <canvas id="overviewTopChart"></canvas>
+                </div>
+            </div>
+        </div>
         
         <!-- Data Information -->
         <div class="analysis-section">
@@ -360,32 +420,101 @@
             </div>
         </div>
 
+        <!-- ARIMA vs SARIMAX Comparison -->
+        <div class="analysis-section">
+            <h3 class="section-title">ARIMA vs SARIMAX (Production Forecast)</h3>
+            <div class="analysis-card">
+                <div id="dualModelEmpty" class="text-muted">
+                    Run analysis to load the latest forecast comparison for the selected medicine.
+                </div>
+                <div id="dualModelContent" style="display:none;">
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <div><strong>ARIMA Order:</strong> <span id="cmpArimaOrder">-</span></div>
+                            <div><strong>SARIMAX Order:</strong> <span id="cmpSarimaxOrder">-</span></div>
+                            <div><strong>Seasonal Order:</strong> <span id="cmpSeasonalOrder">-</span></div>
+                            <div><strong>Exogenous Features:</strong> <span id="cmpFeatures">-</span></div>
+                        </div>
+                        <div class="col-md-4 text-md-end mt-2 mt-md-0">
+                            <span id="cmpRecommended" class="recommendation-badge" style="display:none;"></span>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>ARIMA</th>
+                                    <th>SARIMAX</th>
+                                    <th>Improvement</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>MAPE</td>
+                                    <td id="cmpArimaMape">-</td>
+                                    <td id="cmpSarimaxMape">-</td>
+                                    <td id="cmpImpMape">-</td>
+                                </tr>
+                                <tr>
+                                    <td>RMSE</td>
+                                    <td id="cmpArimaRmse">-</td>
+                                    <td id="cmpSarimaxRmse">-</td>
+                                    <td id="cmpImpRmse">-</td>
+                                </tr>
+                                <tr>
+                                    <td>MAE</td>
+                                    <td id="cmpArimaMae">-</td>
+                                    <td id="cmpSarimaxMae">-</td>
+                                    <td id="cmpImpMae">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Visualizations -->
         <div class="analysis-section">
             <h3 class="section-title">Visualizations</h3>
             
-            <!-- Time Series Chart -->
-            <div class="chart-container">
-                <div class="chart-title">Time Series Data</div>
-                <img id="timeSeriesChart" src="" alt="Time Series Chart" class="img-fluid" style="display: none;">
-            </div>
+            <div class="row g-4">
+                <div class="col-xl-6">
+                    <div class="chart-container">
+                        <div class="chart-title">Time Series Data</div>
+                        <div class="chart-image-wrap">
+                            <img id="timeSeriesChart" src="" alt="Time Series Chart" class="chart-image" style="display: none;">
+                        </div>
+                    </div>
+                </div>
 
-            <!-- Seasonal Decomposition Chart -->
-            <div class="chart-container">
-                <div class="chart-title">Seasonal Decomposition</div>
-                <img id="decompositionChart" src="" alt="Seasonal Decomposition Chart" class="img-fluid" style="display: none;">
-            </div>
+                <div class="col-xl-6">
+                    <div class="chart-container">
+                        <div class="chart-title">Seasonal Decomposition</div>
+                        <div class="chart-image-wrap">
+                            <img id="decompositionChart" src="" alt="Seasonal Decomposition Chart" class="chart-image" style="display: none;">
+                        </div>
+                    </div>
+                </div>
 
-            <!-- Model Fit Chart -->
-            <div class="chart-container">
-                <div class="chart-title">Model Fit Comparison</div>
-                <img id="modelFitChart" src="" alt="Model Fit Chart" class="img-fluid" style="display: none;">
-            </div>
+                <div class="col-xl-6">
+                    <div class="chart-container">
+                        <div class="chart-title">Model Fit Comparison</div>
+                        <div class="chart-image-wrap">
+                            <img id="modelFitChart" src="" alt="Model Fit Chart" class="chart-image" style="display: none;">
+                        </div>
+                    </div>
+                </div>
 
-            <!-- Forecast Chart -->
-            <div class="chart-container">
-                <div class="chart-title">12-Month Forecast</div>
-                <img id="forecastChart" src="" alt="Forecast Chart" class="img-fluid" style="display: none;">
+                <div class="col-xl-6">
+                    <div class="chart-container">
+                        <div class="chart-title">12-Month Forecast</div>
+                        <div class="chart-image-wrap">
+                            <img id="forecastChart" src="" alt="Forecast Chart" class="chart-image" style="display: none;">
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -418,9 +547,23 @@
                 </div>
                 <div class="col-md-6">
                     <div class="analysis-card">
-                        <h5>Forecast Values</h5>
-                        <div id="forecastValues" class="model-params">
-                            <!-- Forecast values will be populated here -->
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <h5 class="mb-0">Forecast Values</h5>
+                            <span id="sarimaxFallbackBadge" class="badge bg-warning text-dark" style="display:none;">SARIMAX fallback</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Month</th>
+                                        <th>ARIMA</th>
+                                        <th>SARIMAX</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="forecastValues">
+                                    <!-- Forecast values will be populated here -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -431,8 +574,118 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 let currentAnalysisData = null;
+let overviewTopChart = null;
+
+const verticalHoverLinePlugin = {
+    id: 'verticalHoverLine',
+    afterDraw(chart) {
+        const active = chart.tooltip?.getActiveElements?.() || [];
+        if (!active.length) {
+            return;
+        }
+
+        const ctx = chart.ctx;
+        const x = active[0].element.x;
+        const topY = chart.chartArea.top;
+        const bottomY = chart.chartArea.bottom;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, topY);
+        ctx.lineTo(x, bottomY);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(108, 117, 125, 0.45)';
+        ctx.stroke();
+        ctx.restore();
+    }
+};
+
+function formatValue(value, decimals = 2, suffix = '') {
+    if (value === null || value === undefined || value === '' || Number.isNaN(Number(value))) {
+        return '-';
+    }
+    return `${Number(value).toFixed(decimals)}${suffix}`;
+}
+
+function formatImprovement(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return '-';
+    }
+    const numeric = Number(value);
+    const arrow = numeric > 0 ? '↓' : (numeric < 0 ? '↑' : '→');
+    return `${arrow} ${Math.abs(numeric).toFixed(1)}%`;
+}
+
+function resetDualModelPanel(message = 'Run analysis to load the latest forecast comparison for the selected medicine.') {
+    document.getElementById('dualModelEmpty').textContent = message;
+    document.getElementById('dualModelEmpty').style.display = 'block';
+    document.getElementById('dualModelContent').style.display = 'none';
+    const rec = document.getElementById('cmpRecommended');
+    rec.style.display = 'none';
+    rec.className = 'recommendation-badge';
+    rec.textContent = '';
+}
+
+async function loadDualModelComparison(medicineId) {
+    try {
+        const response = await fetch(`/analytics/api/forecast/best-auto/?medicine_id=${medicineId}`);
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+            resetDualModelPanel(data.error || 'No forecast comparison available for this medicine yet.');
+            return;
+        }
+
+        const comparison = data.model_comparison || {};
+        const sarimax = data.sarimax || {};
+        const arima = comparison.arima || {};
+        const sarimaxCmp = comparison.sarimax || {};
+        const improvement = comparison.improvement_pct || {};
+
+        document.getElementById('cmpArimaOrder').textContent = data.model_info?.arima_params || '-';
+
+        const so = sarimax.order || {};
+        const sso = sarimax.seasonal_order || {};
+        document.getElementById('cmpSarimaxOrder').textContent =
+            (so.p !== undefined) ? `ARIMA(${so.p},${so.d},${so.q})` : '-';
+        document.getElementById('cmpSeasonalOrder').textContent =
+            (sso.P !== undefined) ? `(${sso.P},${sso.D},${sso.Q},${sso.m})` : '-';
+
+        const features = data.exogenous_features || sarimax.features_used || [];
+        document.getElementById('cmpFeatures').textContent =
+            features.length ? features.join(', ') : 'No exogenous features recorded';
+
+        document.getElementById('cmpArimaMape').textContent = formatValue(arima.mape ?? data.model_info?.mape, 2, '%');
+        document.getElementById('cmpSarimaxMape').textContent = formatValue(sarimaxCmp.mape ?? sarimax.mape, 2, '%');
+        document.getElementById('cmpImpMape').textContent = formatImprovement(improvement.mape);
+
+        document.getElementById('cmpArimaRmse').textContent = formatValue(arima.rmse ?? data.model_info?.rmse, 4);
+        document.getElementById('cmpSarimaxRmse').textContent = formatValue(sarimaxCmp.rmse ?? sarimax.rmse, 4);
+        document.getElementById('cmpImpRmse').textContent = formatImprovement(improvement.rmse);
+
+        document.getElementById('cmpArimaMae').textContent = formatValue(arima.mae ?? data.model_info?.mae, 4);
+        document.getElementById('cmpSarimaxMae').textContent = formatValue(sarimaxCmp.mae ?? sarimax.mae, 4);
+        document.getElementById('cmpImpMae').textContent = formatImprovement(improvement.mae);
+
+        const recommended = (comparison.recommended_model || '').toLowerCase();
+        const rec = document.getElementById('cmpRecommended');
+        if (recommended === 'arima' || recommended === 'sarimax') {
+            rec.textContent = `Recommended: ${recommended.toUpperCase()}`;
+            rec.className = `recommendation-badge ${recommended}`;
+            rec.style.display = 'inline-block';
+        } else {
+            rec.style.display = 'none';
+        }
+
+        document.getElementById('dualModelEmpty').style.display = 'none';
+        document.getElementById('dualModelContent').style.display = 'block';
+    } catch (error) {
+        resetDualModelPanel('Unable to load ARIMA vs SARIMAX comparison.');
+    }
+}
 
 // Update current selection display
 function updateCurrentSelection() {
@@ -463,6 +716,7 @@ async function runAnalysis() {
         
         currentAnalysisData = data;
         displayAnalysisResults(data);
+        await loadDualModelComparison(medicineId);
         
         // Hide loading and show results
         document.getElementById('loadingSection').style.display = 'none';
@@ -474,11 +728,14 @@ async function runAnalysis() {
         alert('Analysis failed: ' + error.message);
         document.getElementById('loadingSection').style.display = 'none';
         document.getElementById('analysisStatus').textContent = 'Analysis Failed';
+        resetDualModelPanel();
     }
 }
 
 // Display analysis results
 function displayAnalysisResults(data) {
+    renderOverviewTopChart(data.overview_series || {}, data.forecast?.sarimax_is_fallback);
+
     // Data information
     document.getElementById('totalPoints').textContent = data.data_info.total_points;
     document.getElementById('dataMean').textContent = data.data_info.statistics.mean.toFixed(2);
@@ -542,18 +799,166 @@ function displayAnalysisResults(data) {
     // Display forecast values
     const forecastValuesContainer = document.getElementById('forecastValues');
     forecastValuesContainer.innerHTML = '';
-    data.forecast.values.forEach((value, index) => {
-        const div = document.createElement('div');
-        div.className = 'param-item';
-        div.innerHTML = `
-            <span class="param-label">Month ${index + 1}:</span>
-            <span class="param-value">${value.toFixed(2)}</span>
+    const arimaValues = data.forecast.values || [];
+    const sarimaxValues = data.forecast.sarimax_values || [];
+    const sarimaxFallback = Boolean(data.forecast.sarimax_is_fallback);
+    const rowCount = Math.max(arimaValues.length, sarimaxValues.length);
+
+    const sarimaxBadge = document.getElementById('sarimaxFallbackBadge');
+    if (sarimaxFallback) {
+        sarimaxBadge.style.display = 'inline-block';
+        sarimaxBadge.textContent = 'SARIMAX fallback';
+        sarimaxBadge.title = 'SARIMAX could not be fitted, so ARIMA forecast values are shown in the SARIMAX column.';
+    } else {
+        sarimaxBadge.style.display = 'none';
+    }
+
+    for (let index = 0; index < rowCount; index++) {
+        const arimaValue = arimaValues[index];
+        const sarimaxValue = sarimaxValues[index];
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>Month ${index + 1}</td>
+            <td>${arimaValue !== undefined && arimaValue !== null ? Number(arimaValue).toFixed(2) : '-'}</td>
+            <td>${sarimaxValue !== undefined && sarimaxValue !== null ? Number(sarimaxValue).toFixed(2) : '-'}</td>
         `;
-        forecastValuesContainer.appendChild(div);
-    });
+        forecastValuesContainer.appendChild(row);
+    }
     
     // Display charts
     displayCharts(data.charts);
+}
+
+function renderOverviewTopChart(series, sarimaxFallback = false) {
+    const ctx = document.getElementById('overviewTopChart').getContext('2d');
+
+    if (overviewTopChart) {
+        overviewTopChart.destroy();
+        overviewTopChart = null;
+    }
+
+    const historyLabels = series.history_labels || [];
+    const forecastLabels = series.forecast_labels || [];
+    const historyValues = series.history_values || [];
+    const arimaForecastValues = series.arima_forecast_values || [];
+    const sarimaxForecastValues = series.sarimax_forecast_values || [];
+    const currentStock = series.current_stock ?? null;
+
+    const labels = [...historyLabels, ...forecastLabels];
+    const historyPad = Array(forecastLabels.length).fill(null);
+    const forecastPad = Array(historyLabels.length).fill(null);
+
+    // Current stock: single point pinned at the last history label index, padded elsewhere.
+    const stockDotData = historyLabels.map((_, i) => i === historyLabels.length - 1 ? currentStock : null);
+    const stockDotPad = Array(forecastLabels.length).fill(null);
+
+    overviewTopChart = new Chart(ctx, {
+        type: 'line',
+        plugins: [verticalHoverLinePlugin],
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Historical Sales',
+                    data: [...historyValues, ...historyPad],
+                    borderColor: 'rgb(13, 110, 253)',
+                    backgroundColor: 'rgba(13, 110, 253, 0.15)',
+                    borderWidth: 2,
+                    pointRadius: 1,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 14,
+                    tension: 0.2
+                },
+                {
+                    label: 'Current Stock (live)',
+                    data: [...stockDotData, ...stockDotPad],
+                    borderColor: 'rgb(255, 165, 0)',
+                    backgroundColor: 'rgba(255, 165, 0, 0.8)',
+                    borderWidth: 0,
+                    pointRadius: 8,
+                    pointHoverRadius: 10,
+                    pointHitRadius: 14,
+                    pointStyle: 'triangle',
+                    showLine: false,
+                    tension: 0
+                },
+                {
+                    label: 'ARIMA Forecast',
+                    data: [...forecastPad, ...arimaForecastValues],
+                    borderColor: 'rgb(220, 53, 69)',
+                    backgroundColor: 'rgba(220, 53, 69, 0.15)',
+                    borderWidth: 2,
+                    borderDash: [6, 4],
+                    pointRadius: 1,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 14,
+                    tension: 0.2
+                },
+                {
+                    label: sarimaxFallback ? 'SARIMAX Forecast (fallback)' : 'SARIMAX Forecast',
+                    data: [...forecastPad, ...sarimaxForecastValues],
+                    borderColor: 'rgb(25, 135, 84)',
+                    backgroundColor: 'rgba(25, 135, 84, 0.15)',
+                    borderWidth: 2,
+                    borderDash: [3, 3],
+                    pointRadius: 1,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 14,
+                    tension: 0.2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            if (value === null || value === undefined || Number.isNaN(value)) {
+                                return null; // hide null entries from tooltip
+                            }
+                            const label = context.dataset.label || '';
+                            if (label.includes('Current Stock')) {
+                                return `${label}: ${Math.round(value)} units`;
+                            }
+                            return `${label}: ${Number(value).toFixed(2)}`;
+                        },
+                        filter: function(item) {
+                            return item.parsed.y !== null && item.parsed.y !== undefined;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        autoSkip: true,
+                        maxTicksLimit: 10,
+                        maxRotation: 0
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Quantity Sold'
+                    }
+                }
+            }
+        }
+    });
 }
 
 // Display charts
@@ -594,6 +999,7 @@ document.getElementById('periodSelect').addEventListener('change', updateCurrent
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     updateCurrentSelection();
+    resetDualModelPanel();
 });
 </script>
 {% endblock %}

@@ -128,7 +128,7 @@ DATABASES = {
             'USER': 'postgres',  # Replace with your PostgreSQL username
             'PASSWORD': 'z3rr3Itug',  # Replace with your PostgreSQL password
             'HOST': 'localhost',  # Or the IP address/hostname of your PostgreSQL server
-            'PORT': '5433',  # Default PostgreSQL port, change if different
+            'PORT': '5432',  # Default PostgreSQL port, change if different
         }
     }
 

@@ -37,7 +37,7 @@ class InventoryDashboardView(LoginRequiredMixin, TemplateView):
             is_active=True,
             current_stock=0
         ).count()
-        total_categories = Category.objects.filter(is_active=True).count()
+        pending_orders = Order.objects.filter(status='pending').count()
         total_manufacturers = Manufacturer.objects.filter(is_active=True).count()
         pending_orders = Order.objects.filter(status='pending').count()
         
@@ -56,7 +56,7 @@ class InventoryDashboardView(LoginRequiredMixin, TemplateView):
             'total_medicines': total_medicines,
             'low_stock_medicines': low_stock_medicines,
             'out_of_stock_medicines': out_of_stock_medicines,
-            'total_categories': total_categories,
+            'pending_orders': pending_orders,
             'total_manufacturers': total_manufacturers,
             'pending_orders': pending_orders,
             'recent_movements': recent_movements,
@@ -624,5 +624,35 @@ class ReorderAlertAPIView(APIView):
                 'total_count': paginator.count,
                 'has_next': page_obj.has_next(),
                 'has_previous': page_obj.has_previous(),
+            }
+        })
+
+
+class InventoryDashboardAPIView(APIView):
+    """API endpoint for inventory dashboard statistics - real-time updates"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Return dashboard statistics for real-time updates"""
+        # Get basic statistics
+        total_medicines = Medicine.objects.filter(is_active=True).count()
+        low_stock_medicines = Medicine.objects.filter(
+            is_active=True,
+            current_stock__lte=F('reorder_point')
+        ).count()
+        out_of_stock_medicines = Medicine.objects.filter(
+            is_active=True,
+            current_stock=0
+        ).count()
+        pending_orders = Order.objects.filter(status='pending').count()
+        total_manufacturers = Manufacturer.objects.filter(is_active=True).count()
+        
+        return Response({
+            'statistics': {
+                'total_medicines': total_medicines,
+                'low_stock_medicines': low_stock_medicines,
+                'out_of_stock_medicines': out_of_stock_medicines,
+                'pending_orders': pending_orders,
+                'total_manufacturers': total_manufacturers,
             }
         })
