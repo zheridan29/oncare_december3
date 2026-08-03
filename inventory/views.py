@@ -16,6 +16,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
 from .models import Medicine, Category, Manufacturer, StockMovement, ReorderAlert, MedicineImage
+from orders.models import Order
 
 
 # Dashboard View
@@ -38,6 +39,7 @@ class InventoryDashboardView(LoginRequiredMixin, TemplateView):
         ).count()
         total_categories = Category.objects.filter(is_active=True).count()
         total_manufacturers = Manufacturer.objects.filter(is_active=True).count()
+        pending_orders = Order.objects.filter(status='pending').count()
         
         # Recent stock movements
         recent_movements = StockMovement.objects.select_related('medicine').order_by('-created_at')[:10]
@@ -56,6 +58,7 @@ class InventoryDashboardView(LoginRequiredMixin, TemplateView):
             'out_of_stock_medicines': out_of_stock_medicines,
             'total_categories': total_categories,
             'total_manufacturers': total_manufacturers,
+            'pending_orders': pending_orders,
             'recent_movements': recent_movements,
             'pending_alerts': pending_alerts,
             'notifications': notifications,
