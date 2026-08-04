@@ -9,7 +9,7 @@ Bring the forecasting implementation closer to the documented research claims by
 - [x] Add a period-aware SARIMAX seasonal order helper
 - [x] Use the helper when building the SARIMAX model
 - [x] Include the seasonal order in the stored SARIMAX results
-- [ ] Verify the helper against real forecasting data
+- [x] Verify the helper against real forecasting data
 
 ### 2. Model comparison evidence
 - [x] Preserve ARIMA vs SARIMAX metrics in model_comparison
@@ -18,8 +18,8 @@ Bring the forecasting implementation closer to the documented research claims by
 
 ### 3. Validation and regression coverage
 - [x] Add a regression test for the seasonal order helper
-- [ ] Run the regression test successfully in the project environment
-- [ ] Add a higher-level forecast-generation test using real data
+- [x] Run the regression test successfully in the project environment
+- [x] Add a higher-level forecast-generation test using real data
 
 ### 4. Documentation and traceability
 - [x] Update the alignment report with the implemented improvements

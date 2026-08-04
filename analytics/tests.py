@@ -5,6 +5,7 @@ Comprehensive unit tests for the analytics module
 from django.test import TestCase, Client
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from decimal import Decimal
 from datetime import date, datetime, timedelta
 import json
@@ -267,3 +268,56 @@ class ARIMAForecastingServiceTests(TestCase):
         self.assertEqual(self.service._get_sarimax_seasonal_order('weekly', 100), (1, 0, 1, 52))
         self.assertEqual(self.service._get_sarimax_seasonal_order('monthly', 100), (1, 0, 1, 12))
         self.assertEqual(self.service._get_sarimax_seasonal_order('monthly', 6), (0, 0, 0, 0))
+
+    def test_generate_forecast_with_seeded_monthly_sales_data_returns_model_explanation(self):
+        """Seed realistic monthly order data and verify forecast outputs comparison explanation fields."""
+        now = timezone.now()
+
+        for month_idx in range(36):
+            order = Order.objects.create(
+                order_number=f"TEST-ORD-{month_idx:03d}",
+                customer_name='Test Customer',
+                customer_phone='09171234567',
+                customer_address='Test Address',
+                status='delivered',
+                payment_status='paid',
+                subtotal=Decimal('100.00'),
+                tax_amount=Decimal('0.00'),
+                shipping_cost=Decimal('0.00'),
+                discount_amount=Decimal('0.00'),
+                total_amount=Decimal('100.00'),
+                delivery_method='delivery',
+            )
+
+            # Spread orders over ~36 months to exercise monthly seasonality.
+            order_date = now - timedelta(days=(36 - month_idx) * 30)
+            Order.objects.filter(pk=order.pk).update(created_at=order_date)
+
+            OrderItem.objects.create(
+                order=order,
+                medicine=self.medicine,
+                quantity=8 + (month_idx % 7),
+                unit='boxes',
+                unit_price=Decimal('25.50'),
+                total_price=Decimal('25.50'),
+            )
+
+        forecast = self.service.generate_forecast(
+            self.medicine.id,
+            forecast_period='monthly',
+            forecast_horizon=3,
+        )
+
+        self.assertIsNotNone(forecast.id)
+        self.assertEqual(forecast.forecast_period, 'monthly')
+        self.assertEqual(forecast.forecast_horizon, 3)
+        self.assertEqual(len(forecast.forecasted_demand), 3)
+
+        comparison = forecast.model_comparison
+        self.assertIn('recommended_model', comparison)
+        self.assertIn(comparison.get('recommended_model'), ['arima', 'sarimax'])
+        self.assertTrue(comparison.get('recommendation_explanation'))
+        self.assertIn('mape', comparison.get('improvement_pct', {}))
+
+        self.assertIn('seasonal_order', forecast.sarimax_results)
+        self.assertIn('features_used', forecast.sarimax_results)
