@@ -6,6 +6,7 @@ from django.test import TestCase, Client
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django.urls import reverse
 from decimal import Decimal
 from datetime import date, datetime, timedelta
 import json
@@ -321,3 +322,160 @@ class ARIMAForecastingServiceTests(TestCase):
 
         self.assertIn('seasonal_order', forecast.sarimax_results)
         self.assertIn('features_used', forecast.sarimax_results)
+
+    def test_generate_forecast_falls_back_when_exogenous_features_are_not_stable(self):
+        """Forecasting should fall back safely when exogenous features are constant/degenerate."""
+        now = timezone.now()
+
+        for month_idx in range(12):
+            order = Order.objects.create(
+                order_number=f"FALLBACK-ORD-{month_idx:03d}",
+                customer_name='Fallback Customer',
+                customer_phone='09170000001',
+                customer_address='Fallback Address',
+                status='delivered',
+                payment_status='paid',
+                subtotal=Decimal('100.00'),
+                tax_amount=Decimal('0.00'),
+                shipping_cost=Decimal('0.00'),
+                discount_amount=Decimal('0.00'),
+                total_amount=Decimal('100.00'),
+                delivery_method='delivery',
+            )
+            order_date = now - timedelta(days=(12 - month_idx) * 30)
+            Order.objects.filter(pk=order.pk).update(created_at=order_date)
+
+            OrderItem.objects.create(
+                order=order,
+                medicine=self.medicine,
+                quantity=10,
+                unit='boxes',
+                unit_price=Decimal('25.50'),
+                total_price=Decimal('25.50'),
+            )
+
+        def constant_exog(_medicine_id, sales_data, _period_type):
+            sales_dates = pd.to_datetime(sales_data['date'])
+            return pd.DataFrame({
+                'date': sales_dates,
+                'constant_feature_a': [1.0] * len(sales_dates),
+                'constant_feature_b': [2.0] * len(sales_dates),
+            })
+
+        with patch.object(self.service, '_build_exogenous_features', side_effect=constant_exog):
+            forecast = self.service.generate_forecast(
+                self.medicine.id,
+                forecast_period='monthly',
+                forecast_horizon=3,
+            )
+
+        self.assertTrue(forecast.sarimax_results.get('fallback_used'))
+        self.assertIn('fallback_reason', forecast.sarimax_results)
+        self.assertIn('No stable exogenous features', forecast.sarimax_results['fallback_reason'])
+        self.assertTrue(forecast.model_comparison.get('recommendation_explanation'))
+        self.assertIn('mape', forecast.model_comparison.get('improvement_pct', {}))
+
+
+class AnalyticsForecastAPITests(TestCase):
+    """API-level tests for forecast data payload alignment."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='analytics_admin',
+            email='analytics_admin@example.com',
+            password='testpass123',
+            role='admin',
+        )
+
+        self.category = Category.objects.create(name='Pain Relief', is_active=True)
+        self.manufacturer = Manufacturer.objects.create(name='Unilab', country='PH', is_active=True)
+        self.medicine = Medicine.objects.create(
+            name='Paracetamol',
+            category=self.category,
+            manufacturer=self.manufacturer,
+            unit_price=Decimal('10.00'),
+            cost_price=Decimal('7.50'),
+            dosage_form='tablet',
+            strength='500mg',
+            current_stock=200,
+            reorder_point=30,
+            units_per_box=10,
+        )
+
+        order = Order.objects.create(
+            order_number='API-TEST-001',
+            customer_name='API Test Customer',
+            customer_phone='09170000000',
+            customer_address='API Test Address',
+            status='delivered',
+            payment_status='paid',
+            subtotal=Decimal('100.00'),
+            tax_amount=Decimal('0.00'),
+            shipping_cost=Decimal('0.00'),
+            discount_amount=Decimal('0.00'),
+            total_amount=Decimal('100.00'),
+            delivery_method='delivery',
+        )
+        OrderItem.objects.create(
+            order=order,
+            medicine=self.medicine,
+            quantity=12,
+            unit='boxes',
+            unit_price=Decimal('10.00'),
+            total_price=Decimal('10.00'),
+        )
+
+        today = timezone.now().date()
+        self.forecast = DemandForecast.objects.create(
+            medicine=self.medicine,
+            forecast_period='monthly',
+            forecast_horizon=3,
+            arima_p=1,
+            arima_d=1,
+            arima_q=1,
+            aic=123.45,
+            bic=129.99,
+            rmse=5.1,
+            mae=4.7,
+            mape=8.9,
+            forecasted_demand=[100, 104, 107],
+            confidence_intervals={
+                'lower': [95, 99, 102],
+                'upper': [105, 109, 112],
+            },
+            sarimax_results={
+                'seasonal_order': {'P': 1, 'D': 0, 'Q': 1, 'm': 12},
+                'features_used': ['month_sin', 'month_cos'],
+                'mape': 7.2,
+                'rmse': 4.2,
+                'mae': 3.8,
+            },
+            model_comparison={
+                'recommended_model': 'sarimax',
+                'recommendation_explanation': 'SARIMAX selected because its MAPE (7.20%) is lower than ARIMA (8.90%).',
+                'arima': {'mape': 8.9, 'rmse': 5.1, 'mae': 4.7},
+                'sarimax': {'mape': 7.2, 'rmse': 4.2, 'mae': 3.8},
+                'improvement_pct': {'mape': 19.1, 'rmse': 17.6, 'mae': 19.1},
+            },
+            exogenous_features=['month_sin', 'month_cos'],
+            training_data_start=today - timedelta(days=365),
+            training_data_end=today,
+            training_data_points=12,
+        )
+
+    def test_forecast_data_api_includes_comparison_summary_explanation(self):
+        self.client.force_login(self.user)
+
+        url = reverse('analytics:api_forecast_data', args=[self.forecast.id])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertIn('comparison_summary', payload)
+        summary = payload['comparison_summary']
+        self.assertEqual(summary.get('recommended_model'), 'sarimax')
+        self.assertIn('SARIMAX selected because', summary.get('recommendation_explanation', ''))
+        self.assertEqual(summary.get('sarimax_seasonal_order', {}).get('m'), 12)
+        self.assertIn('month_sin', summary.get('features_used', []))

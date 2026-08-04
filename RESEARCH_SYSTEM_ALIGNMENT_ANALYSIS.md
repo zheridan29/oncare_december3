@@ -27,6 +27,14 @@ Traceability links:
 - API exposure of decision summary: analytics/api_views.py -> generate_forecast and get_forecast_data
 - Dashboard rendering of explanation: templates/analytics/dashboard.html -> updateModelComparisonPanel
 
+Phase 2 matrix references:
+- T1: ARIMA and SARIMAX forecasting flow implementation and test verification
+- T2: Period-aware SARIMAX seasonal configuration defaults
+- T3: ARIMA vs SARIMAX comparison and recommendation logic
+- T4: Recommendation explanation propagation across service, API, and UI
+- T5: API summary exposure for seasonal order and feature usage
+- T6: Step-by-step SARIMAX visualization flow and manual rendering validation
+
 ---
 
 ## 1. Research Chapters vs. System Implementation
