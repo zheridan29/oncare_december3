@@ -260,3 +260,10 @@ class ARIMAForecastingServiceTests(TestCase):
         self.assertIsInstance(metrics['rmse'], float)
         self.assertIsInstance(metrics['mae'], float)
         self.assertIsInstance(metrics['mape'], float)
+
+    def test_get_sarimax_seasonal_order_uses_period_specific_defaults(self):
+        """SARIMAX should use a period-aware seasonal order when enough history exists."""
+        self.assertEqual(self.service._get_sarimax_seasonal_order('daily', 100), (1, 0, 1, 7))
+        self.assertEqual(self.service._get_sarimax_seasonal_order('weekly', 100), (1, 0, 1, 52))
+        self.assertEqual(self.service._get_sarimax_seasonal_order('monthly', 100), (1, 0, 1, 12))
+        self.assertEqual(self.service._get_sarimax_seasonal_order('monthly', 6), (0, 0, 0, 0))

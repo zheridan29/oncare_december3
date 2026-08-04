@@ -299,6 +299,7 @@
                             <div id="cmpFeatures" class="small text-muted">-</div>
                         </div>
                         <div class="col-md-8 mb-3">
+                            <div id="cmpReasoning" class="small text-muted mb-2"></div>
                             <div class="table-responsive">
                                 <table class="table table-sm table-striped mb-0">
                                     <thead>
@@ -943,10 +944,12 @@ function resetModelComparisonPanel() {
     $('#comparisonContent').hide();
     $('#comparisonEmptyState').show();
     $('#recommendedModelBadge').hide().removeClass('arima sarimax').text('');
+    $('#cmpReasoning').text('');
 }
 
 function updateModelComparisonPanel(data) {
     const comparison = data.model_comparison || {};
+    const comparisonSummary = data.comparison_summary || {};
     const sarimax = data.sarimax || {};
     const modelInfo = data.model_info || data.model_metrics || {};
 
@@ -986,6 +989,16 @@ function updateModelComparisonPanel(data) {
     $('#cmpArimaMape').text(formatMetric(arimaMape, 2, '%'));
     $('#cmpSarimaxMape').text(formatMetric(sarimaxMape, 2, '%'));
     $('#cmpImpMape').text(formatImprovement(improvement.mape));
+
+    const recommendedModel = (comparisonSummary.recommended_model || comparison.recommended_model || '').toLowerCase();
+    const explicitReasoning = comparisonSummary.recommendation_explanation || comparison.recommendation_explanation || '';
+    let reasoning = explicitReasoning || 'No model comparison details are available yet.';
+    if (!explicitReasoning && recommendedModel === 'sarimax') {
+        reasoning = `SARIMAX is recommended because it achieved ${formatMetric(sarimaxMape, 2, '%')} MAPE versus ${formatMetric(arimaMape, 2, '%')} for ARIMA.`;
+    } else if (!explicitReasoning && recommendedModel === 'arima') {
+        reasoning = `ARIMA is recommended because it achieved ${formatMetric(arimaMape, 2, '%')} MAPE versus ${formatMetric(sarimaxMape, 2, '%')} for SARIMAX.`;
+    }
+    $('#cmpReasoning').text(reasoning);
 
     $('#cmpArimaRmse').text(formatMetric(arimaRmse, 4));
     $('#cmpSarimaxRmse').text(formatMetric(sarimaxRmse, 4));

@@ -24,7 +24,7 @@
 <!-- Statistics Cards -->
 <div class="row mb-4">
     <div class="col-md-3">
-        <div class="card bg-primary text-white">
+        <div class="card bg-primary text-white h-100 border-0 shadow-sm">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
@@ -56,36 +56,24 @@
         </a>
     </div>
     <div class="col-md-3">
-<<<<<<< HEAD
         <a href="{% url 'orders:pharmacist_dashboard' %}" class="text-decoration-none">
-            <div class="card bg-success text-white">
+            <div class="card bg-success text-white h-100 border-0 shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h4 class="card-title">{{ pending_orders|default:0 }}</h4>
+                            <h4 class="card-title" id="stat-pending-orders">{{ pending_orders|default:0 }}</h4>
                             <p class="card-text">Pending Orders</p>
                         </div>
                         <div class="align-self-center">
-                            <i class="fas fa-tasks fa-2x"></i>
+                            <i class="fas fa-hourglass-half fa-2x"></i>
                         </div>
-=======
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h4 class="card-title" id="stat-pending-orders">{{ pending_orders|default:0 }}</h4>
-                        <p class="card-text">Pending Orders</p>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-hourglass-half fa-2x"></i>
->>>>>>> fd3fd0165ebb630b70cd8adacc8c82e542e7249b
                     </div>
                 </div>
             </div>
         </a>
     </div>
     <div class="col-md-3">
-        <div class="card bg-info text-white">
+        <div class="card bg-info text-white h-100 border-0 shadow-sm">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>

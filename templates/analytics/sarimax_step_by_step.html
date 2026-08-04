@@ -97,7 +97,7 @@
         margin-bottom: 30px;
     }
 
-    .chart-container {
+    .step-chart-container {
         background: white;
         border-radius: 10px;
         padding: 20px;
@@ -108,6 +108,44 @@
         position: relative;
         z-index: 1;
         border: 1px solid #e9ecef;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .chart-stage {
+        width: 100%;
+        max-width: 1220px;
+        overflow: hidden;
+        border-radius: 8px;
+        cursor: grab;
+        touch-action: none;
+        background: #fbfdff;
+    }
+
+    .chart-controls {
+        width: 100%;
+        max-width: 1220px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .chart-controls-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .zoom-level {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #1b4965;
+        min-width: 64px;
+        text-align: center;
     }
 
     .chart-title {
@@ -120,6 +158,7 @@
 
     .chart-image {
         max-width: 100%;
+        width: auto;
         height: auto;
         border-radius: 8px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
@@ -127,6 +166,10 @@
         margin: 0 auto;
         position: relative;
         z-index: 1;
+        transform-origin: top left;
+        will-change: transform;
+        user-select: none;
+        -webkit-user-drag: none;
     }
 
     .loading-spinner {
@@ -223,24 +266,43 @@
     @media (max-width: 768px) {
         .step-navigation { flex-wrap: wrap; gap: 10px; }
         .step-btn { min-width: 50px; padding: 8px 16px; font-size: 0.9rem; }
-        .chart-container { padding: 15px; }
+        .step-chart-container { padding: 15px; }
         .step-content { padding: 20px; }
         .metrics-grid { grid-template-columns: 1fr; }
+        #stepChart { max-height: 60vh !important; }
+        .chart-controls { flex-direction: column; align-items: flex-start; }
     }
 
     html, body { height: auto; overflow-x: hidden; position: relative; }
     footer { position: relative; clear: both; margin-top: 50px; background: #f8f9fa; border-top: 1px solid #dee2e6; }
-    .step-container { margin-bottom: 40px; }
-    .chart-container { margin-bottom: 40px; }
-    .main-content { min-height: calc(100vh - 200px); padding-bottom: 50px; }
-    .step-content { position: relative; overflow: visible; }
-    .chart-container { position: relative; overflow: visible; margin-bottom: 30px; }
-    .chart-container img { max-width: 100% !important; height: auto !important; display: block !important; margin: 0 auto !important; position: relative !important; vertical-align: top; }
-    * { box-sizing: border-box; }
-    .row { margin-left: 0; margin-right: 0; position: relative; }
-    .col-12 { padding-left: 0; padding-right: 0; position: relative; }
-    .container-fluid { position: relative; overflow: visible; }
-    .main-content { position: relative; overflow: visible; }
+    .step-container { margin-bottom: 40px; overflow: visible; }
+    .main-content { min-height: calc(100vh - 200px); padding-bottom: 50px; position: relative; }
+    .step-content {
+        position: relative;
+        overflow: visible;
+        display: block;
+        min-height: auto;
+    }
+    #stepAnalysis { margin-bottom: 12px; }
+    .step-chart-container {
+        position: relative;
+        overflow: visible;
+        margin: 0 0 8px 0;
+        clear: both;
+        z-index: 0;
+    }
+    .step-chart-container img,
+    .chart-image,
+    #stepChart {
+        max-width: 100% !important;
+        width: auto !important;
+        height: auto !important;
+        max-height: 78vh;
+        display: block !important;
+        margin: 0 auto !important;
+        position: relative !important;
+        object-fit: contain;
+    }
     .clearfix::after { content: ""; display: table; clear: both; }
     .page-wrapper { position: relative; min-height: 100vh; display: block; }
     .content-wrapper { position: relative; display: block; }
@@ -369,13 +431,29 @@
 
                         <div id="stepAnalysis"></div>
 
-                        <div class="chart-container">
+                        <div class="step-chart-container">
                             <div class="chart-title">Visualization</div>
+                            <div class="chart-controls">
+                                <div class="chart-controls-left">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="zoomOutBtn">
+                                        <i class="fas fa-search-minus"></i> Zoom Out
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="zoomInBtn">
+                                        <i class="fas fa-search-plus"></i> Zoom In
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="resetZoomBtn">
+                                        <i class="fas fa-undo"></i> Reset
+                                    </button>
+                                </div>
+                                <div class="zoom-level" id="zoomLevel">100%</div>
+                            </div>
                             <div id="chartLoading" class="text-center" style="display: none;">
                                 <div class="spinner-border text-primary" role="status"><span class="sr-only">Loading chart...</span></div>
                                 <p class="mt-2">Generating visualization...</p>
                             </div>
-                            <img id="stepChart" src="" alt="Step Chart" class="chart-image" style="display: none; opacity: 0; transition: opacity 0.3s ease;">
+                            <div class="chart-stage">
+                                <img id="stepChart" src="" alt="Step Chart" class="chart-image" style="display: none; opacity: 0; transition: opacity 0.3s ease;">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -447,11 +525,13 @@ function displayStepResults(data) {
         const chartLoading = document.getElementById('chartLoading');
         chartLoading.style.display = 'block';
         chartImg.style.display = 'none';
+        resetChartTransform();
         chartImg.src = analysis.chart;
         chartImg.onload = function() {
             chartLoading.style.display = 'none';
             chartImg.style.display = 'block';
             chartImg.style.opacity = '1';
+            resetChartTransform();
         };
         chartImg.onerror = function() {
             chartLoading.style.display = 'none';
@@ -508,6 +588,131 @@ function refreshData() {
     runStepAnalysis();
 }
 
+const chartPanZoomState = {
+    scale: 1,
+    minScale: 1,
+    maxScale: 4,
+    offsetX: 0,
+    offsetY: 0,
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+};
+
+function updateZoomLabel() {
+    const zoomLevel = document.getElementById('zoomLevel');
+    if (zoomLevel) {
+        zoomLevel.textContent = `${Math.round(chartPanZoomState.scale * 100)}%`;
+    }
+}
+
+function applyChartTransform() {
+    const chartImg = document.getElementById('stepChart');
+    const chartStage = document.querySelector('.chart-stage');
+    if (!chartImg || !chartStage) {
+        return;
+    }
+
+    chartImg.style.transform = `translate(${chartPanZoomState.offsetX}px, ${chartPanZoomState.offsetY}px) scale(${chartPanZoomState.scale})`;
+    chartStage.style.cursor = chartPanZoomState.scale > 1 ? 'grab' : 'default';
+    updateZoomLabel();
+}
+
+function clampPanOffsets() {
+    const chartImg = document.getElementById('stepChart');
+    const chartStage = document.querySelector('.chart-stage');
+    if (!chartImg || !chartStage) {
+        return;
+    }
+
+    const visibleWidth = chartStage.clientWidth;
+    const visibleHeight = chartStage.clientHeight;
+    const imgWidth = chartImg.offsetWidth * chartPanZoomState.scale;
+    const imgHeight = chartImg.offsetHeight * chartPanZoomState.scale;
+
+    const minX = Math.min(0, visibleWidth - imgWidth);
+    const minY = Math.min(0, visibleHeight - imgHeight);
+
+    chartPanZoomState.offsetX = Math.max(minX, Math.min(0, chartPanZoomState.offsetX));
+    chartPanZoomState.offsetY = Math.max(minY, Math.min(0, chartPanZoomState.offsetY));
+}
+
+function setZoom(nextScale) {
+    chartPanZoomState.scale = Math.max(chartPanZoomState.minScale, Math.min(chartPanZoomState.maxScale, nextScale));
+    if (chartPanZoomState.scale <= 1) {
+        chartPanZoomState.offsetX = 0;
+        chartPanZoomState.offsetY = 0;
+    }
+    clampPanOffsets();
+    applyChartTransform();
+}
+
+function resetChartTransform() {
+    chartPanZoomState.scale = 1;
+    chartPanZoomState.offsetX = 0;
+    chartPanZoomState.offsetY = 0;
+    chartPanZoomState.isDragging = false;
+    applyChartTransform();
+}
+
+function initializeChartInteractions() {
+    const chartImg = document.getElementById('stepChart');
+    const chartStage = document.querySelector('.chart-stage');
+    const zoomInBtn = document.getElementById('zoomInBtn');
+    const zoomOutBtn = document.getElementById('zoomOutBtn');
+    const resetZoomBtn = document.getElementById('resetZoomBtn');
+
+    if (!chartImg || !chartStage || !zoomInBtn || !zoomOutBtn || !resetZoomBtn) {
+        return;
+    }
+
+    zoomInBtn.addEventListener('click', function() {
+        setZoom(chartPanZoomState.scale + 0.2);
+    });
+
+    zoomOutBtn.addEventListener('click', function() {
+        setZoom(chartPanZoomState.scale - 0.2);
+    });
+
+    resetZoomBtn.addEventListener('click', function() {
+        resetChartTransform();
+    });
+
+    chartStage.addEventListener('wheel', function(event) {
+        event.preventDefault();
+        const delta = event.deltaY < 0 ? 0.15 : -0.15;
+        setZoom(chartPanZoomState.scale + delta);
+    }, { passive: false });
+
+    chartStage.addEventListener('mousedown', function(event) {
+        if (chartPanZoomState.scale <= 1) {
+            return;
+        }
+        chartPanZoomState.isDragging = true;
+        chartPanZoomState.startX = event.clientX - chartPanZoomState.offsetX;
+        chartPanZoomState.startY = event.clientY - chartPanZoomState.offsetY;
+        chartStage.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mousemove', function(event) {
+        if (!chartPanZoomState.isDragging) {
+            return;
+        }
+        chartPanZoomState.offsetX = event.clientX - chartPanZoomState.startX;
+        chartPanZoomState.offsetY = event.clientY - chartPanZoomState.startY;
+        clampPanOffsets();
+        applyChartTransform();
+    });
+
+    window.addEventListener('mouseup', function() {
+        if (!chartPanZoomState.isDragging) {
+            return;
+        }
+        chartPanZoomState.isDragging = false;
+        chartStage.style.cursor = chartPanZoomState.scale > 1 ? 'grab' : 'default';
+    });
+}
+
 document.getElementById('medicineSelect').addEventListener('change', function() { updateURL(); });
 document.getElementById('stepSelect').addEventListener('change', function() { updateURL(); });
 
@@ -527,6 +732,7 @@ document.getElementById('scrollToTop').addEventListener('click', function() {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+    initializeChartInteractions();
     resetDualModelPanel();
     runStepAnalysis();
     setTimeout(function() {

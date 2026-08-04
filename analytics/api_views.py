@@ -112,14 +112,25 @@ def generate_forecast(request):
         historical_labels = [d.strftime('%b %d, %Y') if hasattr(d, 'strftime') else str(d) for d in historical_data['date']]
         all_labels = historical_labels + forecast_labels
         
+        comparison_summary = {
+            'recommended_model': forecast.model_comparison.get('recommended_model', 'arima'),
+            'recommendation_explanation': forecast.model_comparison.get('recommendation_explanation', ''),
+            'arima_mape': forecast.model_comparison.get('arima', {}).get('mape'),
+            'sarimax_mape': forecast.model_comparison.get('sarimax', {}).get('mape'),
+            'improvement_pct': forecast.model_comparison.get('improvement_pct', {}),
+            'sarimax_seasonal_order': forecast.sarimax_results.get('seasonal_order', {}),
+            'features_used': forecast.sarimax_results.get('features_used', []),
+        }
+
         return Response({
             'forecast_id': forecast.id,
             'medicine_name': forecast.medicine.name,
             'forecasted_demand': forecast.forecasted_demand,
             'confidence_intervals': forecast.confidence_intervals,
-                'sarimax': forecast.sarimax_results,
-                'model_comparison': forecast.model_comparison,
-                'exogenous_features': forecast.exogenous_features,
+            'sarimax': forecast.sarimax_results,
+            'model_comparison': forecast.model_comparison,
+            'comparison_summary': comparison_summary,
+            'exogenous_features': forecast.exogenous_features,
             'labels': all_labels,
             'forecast_labels': forecast_labels,
             'historical_data': {
@@ -200,6 +211,16 @@ def get_forecast_data(request, forecast_id):
         all_labels = historical_labels + forecast_labels
         
         # Prepare data for visualization
+        comparison_summary = {
+            'recommended_model': forecast.model_comparison.get('recommended_model', 'arima'),
+            'recommendation_explanation': forecast.model_comparison.get('recommendation_explanation', ''),
+            'arima_mape': forecast.model_comparison.get('arima', {}).get('mape'),
+            'sarimax_mape': forecast.model_comparison.get('sarimax', {}).get('mape'),
+            'improvement_pct': forecast.model_comparison.get('improvement_pct', {}),
+            'sarimax_seasonal_order': forecast.sarimax_results.get('seasonal_order', {}),
+            'features_used': forecast.sarimax_results.get('features_used', []),
+        }
+
         chart_data = {
             'labels': all_labels,
             'historical': {
@@ -218,10 +239,10 @@ def get_forecast_data(request, forecast_id):
                 'rmse': forecast.rmse,
                 'mae': forecast.mae,
                 'mape': forecast.mape,
-            }
-            ,
+            },
             'sarimax': forecast.sarimax_results,
             'model_comparison': forecast.model_comparison,
+            'comparison_summary': comparison_summary,
             'exogenous_features': forecast.exogenous_features,
         }
         

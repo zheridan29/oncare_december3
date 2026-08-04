@@ -15,6 +15,18 @@ The OnCare Medicine Ordering System represents a **comprehensive implementation*
 - ✅ **Advanced analytics** with ARIMA forecasting implementation
 - ⚠️ **Minor gaps** in distributed deployment and real-time collaboration features
 
+### Recent Alignment Updates (August 2026)
+
+- Added period-aware SARIMAX seasonal order defaults in forecasting core for daily/weekly/monthly periods.
+- Added explicit model recommendation explanation text in model comparison output.
+- Exposed recommended model, MAPE comparison, seasonal order, feature usage, and explanation through analytics APIs and dashboard comparison panel.
+
+Traceability links:
+- Forecasting core seasonal alignment: analytics/services.py -> ARIMAForecastingService._get_sarimax_seasonal_order
+- Model decision explanation: analytics/services.py -> ARIMAForecastingService._build_model_comparison
+- API exposure of decision summary: analytics/api_views.py -> generate_forecast and get_forecast_data
+- Dashboard rendering of explanation: templates/analytics/dashboard.html -> updateModelComparisonPanel
+
 ---
 
 ## 1. Research Chapters vs. System Implementation

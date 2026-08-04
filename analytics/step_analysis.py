@@ -8,10 +8,16 @@ import matplotlib.pyplot as plt
 import base64
 import io
 import warnings
+import textwrap
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from pmdarima import auto_arima
+
+
+def _finalize_chart(fig):
+    fig.subplots_adjust(left=0.06, right=0.98, top=0.92, bottom=0.10, wspace=0.35, hspace=0.35)
+    fig.tight_layout(pad=2.0)
 
 
 def generate_step_analysis(ts_data, step, service):
@@ -272,11 +278,11 @@ def generate_sarimax_step_analysis(ts_data, step, service, medicine_id, period_t
 
 def create_sarimax_step3_chart(ts_data, fitted_model):
     """Create chart for SARIMAX Step 3: Model Selection"""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
 
     ax1.axis('off')
     ax1.text(0.05, 0.95, 'SARIMAX Model Selection Process', fontsize=14, fontweight='bold', transform=ax1.transAxes)
-    ax1.text(0.05, 0.8, f"""Selection Strategy:
+    ax1.text(0.05, 0.8, textwrap.fill(f"""Selection Strategy:
 • Seasonal order search via Auto ARIMA
 • SARIMAX fit uses selected ARIMA and seasonal orders
 • AIC/BIC-guided specification
@@ -284,7 +290,7 @@ def create_sarimax_step3_chart(ts_data, fitted_model):
 Model Quality:
 • AIC: {fitted_model.aic:.3f}
 • BIC: {fitted_model.bic:.3f}
-• Parameters estimated: {len(fitted_model.params)}""", fontsize=11, transform=ax1.transAxes, verticalalignment='top')
+• Parameters estimated: {len(fitted_model.params)}""", width=52), fontsize=11, transform=ax1.transAxes, verticalalignment='top', wrap=True)
 
     ax2.axis('off')
     ax2.text(0.05, 0.95, 'Selected SARIMAX Model', fontsize=14, fontweight='bold', transform=ax2.transAxes)
@@ -298,9 +304,9 @@ Model Parameters:
 • Seasonal: ({seasonal_order[0]},{seasonal_order[1]},{seasonal_order[2]})[{seasonal_order[3]}]
 • Total Parameters: {len(fitted_model.params)}
 """
-    ax2.text(0.05, 0.8, model_text, fontsize=11, transform=ax2.transAxes, verticalalignment='top', fontfamily='monospace')
+    ax2.text(0.05, 0.8, textwrap.fill(model_text, width=52), fontsize=11, transform=ax2.transAxes, verticalalignment='top', fontfamily='monospace', wrap=True)
 
-    plt.tight_layout()
+    _finalize_chart(fig)
 
     buffer = io.BytesIO()
     plt.savefig(buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')
@@ -313,7 +319,7 @@ Model Parameters:
 
 def create_step1_chart(ts_data, adf_result):
     """Create chart for Step 1: Stationarity Testing"""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
     
     # Original time series
     ax1.plot(ts_data.index, ts_data.values, linewidth=2, color='#2E86AB', marker='o', markersize=3)
@@ -357,7 +363,7 @@ def create_step1_chart(ts_data, adf_result):
     ax2.text(0.05, 0.35, f'{"p-value ≤ 0.05" if is_stationary else "p-value > 0.05"}', 
             fontsize=12, transform=ax2.transAxes)
     
-    plt.tight_layout()
+    _finalize_chart(fig)
     
     buffer = io.BytesIO()
     plt.savefig(buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')
@@ -370,7 +376,7 @@ def create_step1_chart(ts_data, adf_result):
 
 def create_step2_chart(ts_data, decomposition):
     """Create chart for Step 2: Seasonal Decomposition"""
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 10))
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(18, 12))
     
     # Original Data
     ax1.plot(ts_data.index, ts_data.values, linewidth=2, color='blue', label='Original')
@@ -408,7 +414,7 @@ def create_step2_chart(ts_data, decomposition):
     ax4.grid(True, alpha=0.3)
     ax4.tick_params(axis='x', rotation=45)
     
-    plt.tight_layout()
+    _finalize_chart(fig)
     
     buffer = io.BytesIO()
     plt.savefig(buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')
@@ -421,7 +427,7 @@ def create_step2_chart(ts_data, decomposition):
 
 def create_step3_chart(ts_data, model):
     """Create chart for Step 3: Auto ARIMA Model Selection"""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
     
     # Model Selection Process
     ax1.axis('off')
@@ -449,8 +455,8 @@ Optimization:
 • Penalizes overfitting
 • Ensures parsimony"""
     
-    ax1.text(0.05, 0.8, process_text, fontsize=11, transform=ax1.transAxes, 
-            verticalalignment='top')
+    ax1.text(0.05, 0.8, textwrap.fill(process_text, width=52), fontsize=11, transform=ax1.transAxes,
+            verticalalignment='top', wrap=True)
     
     # Selected Model
     ax2.axis('off')
@@ -475,10 +481,10 @@ Interpretation:
 • q={model.order[2]}: {model.order[2]} moving average terms
 • Seasonal: {model.seasonal_order[0]} seasonal AR terms"""
     
-    ax2.text(0.05, 0.8, model_text, fontsize=11, transform=ax2.transAxes, 
-            verticalalignment='top', fontfamily='monospace')
-    
-    plt.tight_layout()
+    ax2.text(0.05, 0.8, textwrap.fill(model_text, width=52), fontsize=11, transform=ax2.transAxes,
+            verticalalignment='top', fontfamily='monospace', wrap=True)
+
+    _finalize_chart(fig)
     
     buffer = io.BytesIO()
     plt.savefig(buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')
@@ -491,7 +497,7 @@ Interpretation:
 
 def create_step4_chart(ts_data, fitted_values, residuals):
     """Create chart for Step 4: Model Evaluation"""
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 10))
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(18, 12))
     
     # Model Fit Comparison
     ax1.plot(ts_data.index, ts_data.values, linewidth=2, color='blue', label='Actual', alpha=0.8)
@@ -549,10 +555,10 @@ MAPE: {mape:.2f}%
 Performance Rating:
 {'Excellent' if mape < 5 else 'Good' if mape < 15 else 'Fair' if mape < 25 else 'Poor'} (MAPE: {mape:.1f}%)"""
     
-    ax4.text(0.05, 0.8, metrics_text, fontsize=11, transform=ax4.transAxes, 
-            verticalalignment='top', fontfamily='monospace')
-    
-    plt.tight_layout()
+    ax4.text(0.05, 0.8, textwrap.fill(metrics_text, width=52), fontsize=11, transform=ax4.transAxes,
+            verticalalignment='top', fontfamily='monospace', wrap=True)
+
+    _finalize_chart(fig)
     
     buffer = io.BytesIO()
     plt.savefig(buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')
@@ -565,7 +571,7 @@ Performance Rating:
 
 def create_step5_chart(ts_data, forecast, conf_int):
     """Create chart for Step 5: Forecast Generation"""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
     
     # Historical Data and Forecast
     forecast_index = pd.date_range(start=ts_data.index[-1] + pd.DateOffset(months=1), 
@@ -613,10 +619,10 @@ Trend Analysis:
 {'Increasing' if forecast[-1] > forecast[0] else 'Decreasing' if forecast[-1] < forecast[0] else 'Stable'} trend
 Change: {((forecast[-1] - forecast[0]) / forecast[0] * 100):+.1f}%"""
     
-    ax2.text(0.05, 0.8, forecast_text, fontsize=10, transform=ax2.transAxes, 
-            verticalalignment='top', fontfamily='monospace')
-    
-    plt.tight_layout()
+    ax2.text(0.05, 0.8, textwrap.fill(forecast_text, width=52), fontsize=10, transform=ax2.transAxes,
+            verticalalignment='top', fontfamily='monospace', wrap=True)
+
+    _finalize_chart(fig)
     
     buffer = io.BytesIO()
     plt.savefig(buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')

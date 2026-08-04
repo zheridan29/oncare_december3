@@ -39,7 +39,6 @@ class InventoryDashboardView(LoginRequiredMixin, TemplateView):
         ).count()
         pending_orders = Order.objects.filter(status='pending').count()
         total_manufacturers = Manufacturer.objects.filter(is_active=True).count()
-        pending_orders = Order.objects.filter(status='pending').count()
         
         # Recent stock movements
         recent_movements = StockMovement.objects.select_related('medicine').order_by('-created_at')[:10]
@@ -58,7 +57,6 @@ class InventoryDashboardView(LoginRequiredMixin, TemplateView):
             'out_of_stock_medicines': out_of_stock_medicines,
             'pending_orders': pending_orders,
             'total_manufacturers': total_manufacturers,
-            'pending_orders': pending_orders,
             'recent_movements': recent_movements,
             'pending_alerts': pending_alerts,
             'notifications': notifications,

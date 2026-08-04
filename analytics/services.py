@@ -461,20 +461,62 @@ class ARIMAForecastingService:
 
         return hist[selected], fut[selected], selected
 
+    def _get_sarimax_seasonal_order(self, period_type: str, data_points: int) -> Tuple[int, int, int, int]:
+        """
+        Return a period-aware seasonal order for SARIMAX so the model matches the
+        documented forecasting approach more closely.
+        """
+        if data_points < 24:
+            return (0, 0, 0, 0)
+
+        if period_type == 'daily':
+            return (1, 0, 1, 7)
+        if period_type == 'weekly':
+            return (1, 0, 1, 52)
+        if period_type == 'monthly':
+            return (1, 0, 1, 12)
+
+        return (0, 0, 0, 0)
+
     def _build_model_comparison(self, arima_metrics: Dict[str, float], sarimax_metrics: Dict[str, float]) -> Dict[str, object]:
         def improvement_percentage(baseline: float, comparison: float) -> Optional[float]:
             if baseline in (None, 0) or not np.isfinite(baseline) or not np.isfinite(comparison):
                 return None
             return float(((baseline - comparison) / baseline) * 100)
 
+        def metric_text(value: Optional[float]) -> str:
+            if value is None or not np.isfinite(value):
+                return "N/A"
+            return f"{value:.2f}%"
+
+        arima_mape = arima_metrics.get('mape', float('inf'))
+        sarimax_mape = sarimax_metrics.get('mape', float('inf'))
+        recommended_model = 'sarimax' if sarimax_mape <= arima_mape else 'arima'
+        mape_improvement = improvement_percentage(arima_mape, sarimax_mape)
+
+        if recommended_model == 'sarimax':
+            explanation = (
+                f"SARIMAX selected because its MAPE ({metric_text(sarimax_mape)}) "
+                f"is lower than ARIMA ({metric_text(arima_mape)})."
+            )
+        else:
+            explanation = (
+                f"ARIMA selected because its MAPE ({metric_text(arima_mape)}) "
+                f"is lower than SARIMAX ({metric_text(sarimax_mape)})."
+            )
+
+        if mape_improvement is not None and recommended_model == 'sarimax':
+            explanation += f" This represents a {mape_improvement:.2f}% MAPE improvement."
+
         comparison = {
             'arima': arima_metrics,
             'sarimax': sarimax_metrics,
-            'recommended_model': 'sarimax' if sarimax_metrics.get('mape', float('inf')) <= arima_metrics.get('mape', float('inf')) else 'arima',
+            'recommended_model': recommended_model,
+            'recommendation_explanation': explanation,
             'improvement_pct': {
                 'rmse': improvement_percentage(arima_metrics.get('rmse', float('inf')), sarimax_metrics.get('rmse', float('inf'))),
                 'mae': improvement_percentage(arima_metrics.get('mae', float('inf')), sarimax_metrics.get('mae', float('inf'))),
-                'mape': improvement_percentage(arima_metrics.get('mape', float('inf')), sarimax_metrics.get('mape', float('inf'))),
+                'mape': mape_improvement,
             }
         }
 
@@ -618,6 +660,7 @@ class ARIMAForecastingService:
                     column for column in historical_features.columns
                     if column != 'date' and historical_features[column].nunique(dropna=True) > 1
                 ]
+                seasonal_order = self._get_sarimax_seasonal_order(forecast_period, len(ts_data))
 
                 if not feature_columns:
                     feature_columns = [column for column in historical_features.columns if column != 'date']
@@ -660,7 +703,12 @@ class ARIMAForecastingService:
                     }
                     sarimax_results = {
                         'order': {'p': p, 'd': d, 'q': q},
-                        'seasonal_order': {'P': 0, 'D': 0, 'Q': 0, 'm': 0},
+                        'seasonal_order': {
+                            'P': seasonal_order[0],
+                            'D': seasonal_order[1],
+                            'Q': seasonal_order[2],
+                            'm': seasonal_order[3],
+                        },
                         'aic': arima_aic,
                         'bic': arima_bic,
                         'rmse': metrics['rmse'],
@@ -685,7 +733,7 @@ class ARIMAForecastingService:
                             ts_data,
                             exog=historical_exog,
                             order=(p, d, q),
-                            seasonal_order=(0, 0, 0, 0),
+                            seasonal_order=seasonal_order,
                             enforce_stationarity=False,
                             enforce_invertibility=False
                         )
@@ -702,7 +750,12 @@ class ARIMAForecastingService:
                     sarimax_conf_int = sarimax_forecast_object.conf_int()
                     sarimax_results = {
                         'order': {'p': p, 'd': d, 'q': q},
-                        'seasonal_order': {'P': 0, 'D': 0, 'Q': 0, 'm': 0},
+                        'seasonal_order': {
+                            'P': seasonal_order[0],
+                            'D': seasonal_order[1],
+                            'Q': seasonal_order[2],
+                            'm': seasonal_order[3],
+                        },
                         'aic': float(sarimax_fitted.aic),
                         'bic': float(sarimax_fitted.bic),
                         'rmse': sarimax_metrics['rmse'],

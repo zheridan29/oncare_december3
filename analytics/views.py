@@ -143,6 +143,17 @@ class ModelEvaluationView(TemplateView):
         
         # Get medicine-specific performance
         context.update(self._get_medicine_performance(forecasts))
+
+        latest_forecast = forecasts.first()
+        if latest_forecast:
+            context['latest_model_summary'] = {
+                'recommended_model': latest_forecast.model_comparison.get('recommended_model', 'arima'),
+                'recommendation_explanation': latest_forecast.model_comparison.get('recommendation_explanation', ''),
+                'arima_mape': latest_forecast.model_comparison.get('arima', {}).get('mape'),
+                'sarimax_mape': latest_forecast.model_comparison.get('sarimax', {}).get('mape'),
+                'sarimax_seasonal_order': latest_forecast.sarimax_results.get('seasonal_order', {}),
+                'features_used': latest_forecast.sarimax_results.get('features_used', []),
+            }
         
         return context
     
