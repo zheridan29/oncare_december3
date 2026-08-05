@@ -154,6 +154,7 @@
                 <div class="col-md-8">
                     <h4 class="mb-1" id="selectedMedicineTitle">-</h4>
                     <div class="mini-label" id="selectionReason">-</div>
+                    <div class="small text-muted mt-1" id="decisionExplanation">-</div>
                 </div>
                 <div class="col-md-4 text-md-end mt-3 mt-md-0">
                     <span id="recommendedBadge" class="recommendation-badge" style="display:none;"></span>
@@ -407,6 +408,9 @@ async function runDecisionAnalysis(showClickStatus = false) {
         document.getElementById('comparisonSection').style.display = 'block';
         document.getElementById('selectedMedicineTitle').textContent = `${data.medicine_name} - ARIMA vs SARIMAX`;
         document.getElementById('selectionReason').textContent = data.selection_reason || 'Best model selected from available metrics.';
+        const comparison = data.model_comparison || {};
+        const explicitReasoning = comparison.recommendation_explanation || data.selection_reason || 'Model recommendation details are not available.';
+        document.getElementById('decisionExplanation').textContent = explicitReasoning;
 
         updateDecisionTable(data);
         updateCharts(data);

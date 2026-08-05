@@ -82,6 +82,21 @@
             </div>
         </div>
     </div>
+    <div class="col-md-3 mt-3 mt-md-0">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ model_decision_audit_count|default:0 }}</h4>
+                        <p class="card-text">Model Decisions</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-project-diagram fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Recent Activity -->
@@ -124,6 +139,52 @@
 
 <!-- Quick Actions -->
 <div class="row mt-4">
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-brain me-2"></i>Recent Forecast Model Decisions
+                </h5>
+                <a href="{% url 'audits:audit_log_list' %}?forecast_decisions=1" class="btn btn-sm btn-outline-success">
+                    <i class="fas fa-filter me-1"></i>View Filtered Logs
+                </a>
+            </div>
+            <div class="card-body">
+                {% if recent_model_decision_logs %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Model</th>
+                                    <th>Fallback</th>
+                                    <th>Explanation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in recent_model_decision_logs %}
+                                <tr>
+                                    <td>{{ log.timestamp|date:"M d, Y H:i" }}</td>
+                                    <td>{{ log.metadata.recommended_model|default:'-'|upper }}</td>
+                                    <td>
+                                        {% if log.metadata.fallback_used %}
+                                            <span class="badge bg-warning text-dark">Yes</span>
+                                        {% else %}
+                                            <span class="badge bg-success">No</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ log.metadata.recommendation_explanation|default:'No explanation available'|truncatechars:80 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">No model-decision audit logs available yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
     <div class="col-12">
         <div class="card">
             <div class="card-header">

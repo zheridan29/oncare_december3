@@ -26,6 +26,7 @@ urlpatterns = [
     
     # API endpoints
     path('api/audit-logs/', views.AuditLogAPIView.as_view(), name='api_audit_logs'),
+    path('api/model-decisions/', views.ModelDecisionAuditAPIView.as_view(), name='api_model_decisions'),
     path('api/security-events/', views.SecurityEventAPIView.as_view(), name='api_security_events'),
     path('api/system-health/', views.SystemHealthAPIView.as_view(), name='api_system_health'),
     path('api/compliance/', views.ComplianceAPIView.as_view(), name='api_compliance'),

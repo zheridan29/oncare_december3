@@ -19,6 +19,7 @@ from .models import (
     CustomerAnalytics, SystemMetrics
 )
 from .services import ARIMAForecastingService, SupplyChainOptimizer
+from audits.models import AuditLog
 from inventory.models import Category, Manufacturer, Medicine
 from accounts.models import User
 from orders.models import Order, OrderItem
@@ -479,3 +480,294 @@ class AnalyticsForecastAPITests(TestCase):
         self.assertIn('SARIMAX selected because', summary.get('recommendation_explanation', ''))
         self.assertEqual(summary.get('sarimax_seasonal_order', {}).get('m'), 12)
         self.assertIn('month_sin', summary.get('features_used', []))
+
+
+class AnalyticsForecastWorkflowAPITests(TestCase):
+    """End-to-end API workflow tests for Phase 3 alignment."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='workflow_admin',
+            email='workflow_admin@example.com',
+            password='testpass123',
+            role='admin',
+        )
+
+        self.category = Category.objects.create(name='Workflow Category', is_active=True)
+        self.manufacturer = Manufacturer.objects.create(name='Workflow Manufacturer', country='PH', is_active=True)
+        self.medicine = Medicine.objects.create(
+            name='Workflow Medicine',
+            category=self.category,
+            manufacturer=self.manufacturer,
+            unit_price=Decimal('15.00'),
+            cost_price=Decimal('9.50'),
+            dosage_form='tablet',
+            strength='500mg',
+            current_stock=300,
+            reorder_point=40,
+            units_per_box=10,
+        )
+
+        now = timezone.now()
+        for month_idx in range(24):
+            order = Order.objects.create(
+                order_number=f"WF-ORD-{month_idx:03d}",
+                customer_name='Workflow Customer',
+                customer_phone='09171112222',
+                customer_address='Workflow Address',
+                status='delivered',
+                payment_status='paid',
+                subtotal=Decimal('100.00'),
+                tax_amount=Decimal('0.00'),
+                shipping_cost=Decimal('0.00'),
+                discount_amount=Decimal('0.00'),
+                total_amount=Decimal('100.00'),
+                delivery_method='delivery',
+            )
+
+            order_date = now - timedelta(days=(24 - month_idx) * 30)
+            Order.objects.filter(pk=order.pk).update(created_at=order_date)
+
+            OrderItem.objects.create(
+                order=order,
+                medicine=self.medicine,
+                quantity=10 + (month_idx % 5),
+                unit='boxes',
+                unit_price=Decimal('15.00'),
+                total_price=Decimal('15.00'),
+            )
+
+    def test_generate_then_fetch_forecast_api_workflow_returns_consistent_model_summary(self):
+        self.client.force_login(self.user)
+
+        generate_url = reverse('analytics:api_generate_forecast')
+        generate_payload = {
+            'medicine_id': self.medicine.id,
+            'forecast_period': 'monthly',
+            'forecast_horizon': 3,
+        }
+
+        generate_response = self.client.post(
+            generate_url,
+            data=json.dumps(generate_payload),
+            content_type='application/json',
+        )
+
+        self.assertEqual(generate_response.status_code, 200)
+        generate_data = generate_response.json()
+        self.assertIn('forecast_id', generate_data)
+        self.assertIn('comparison_summary', generate_data)
+        self.assertTrue(generate_data['comparison_summary'].get('recommendation_explanation'))
+
+        forecast_id = generate_data['forecast_id']
+        detail_url = reverse('analytics:api_forecast_data', args=[forecast_id])
+        detail_response = self.client.get(detail_url)
+
+        self.assertEqual(detail_response.status_code, 200)
+        detail_data = detail_response.json()
+        self.assertIn('comparison_summary', detail_data)
+
+        summary = detail_data['comparison_summary']
+        self.assertIn(summary.get('recommended_model'), ['arima', 'sarimax'])
+        self.assertTrue(summary.get('recommendation_explanation'))
+        self.assertIn('mape', summary.get('improvement_pct', {}))
+        self.assertIn('features_used', summary)
+        self.assertIn('sarimax_seasonal_order', summary)
+
+
+class AnalyticsUIExplanationParityTests(TestCase):
+    """Lightweight UI regression checks for model explanation data binding."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='ui_parity_admin',
+            email='ui_parity_admin@example.com',
+            password='testpass123',
+            role='admin',
+            is_staff=True,
+        )
+
+        self.category = Category.objects.create(name='UI Category', is_active=True)
+        self.manufacturer = Manufacturer.objects.create(name='UI Manufacturer', country='PH', is_active=True)
+        self.medicine = Medicine.objects.create(
+            name='UI Test Medicine',
+            category=self.category,
+            manufacturer=self.manufacturer,
+            unit_price=Decimal('12.00'),
+            cost_price=Decimal('8.00'),
+            dosage_form='tablet',
+            strength='500mg',
+            current_stock=150,
+            reorder_point=25,
+            units_per_box=10,
+        )
+
+    def test_dashboard_has_comparison_explanation_binding(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('analytics:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="cmpReasoning"')
+        self.assertContains(response, 'comparisonSummary.recommendation_explanation')
+
+    def test_forecast_decision_page_has_explanation_binding(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('analytics:forecast_decision'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="decisionExplanation"')
+        self.assertContains(response, 'comparison.recommendation_explanation')
+
+    def test_sarimax_step_page_has_explanation_binding(self):
+        self.client.force_login(self.user)
+        url = f"{reverse('analytics:sarimax_step_by_step')}?medicine_id={self.medicine.id}&step=3"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="cmpReasoning"')
+        self.assertContains(response, '/analytics/api/forecast/best-auto/')
+        self.assertContains(response, 'comparison.recommendation_explanation')
+
+
+class AnalyticsOperationalEvidenceTests(TestCase):
+    """Phase 3 section 3 tests for model decision evidence and fallback persistence."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='ops_admin',
+            email='ops_admin@example.com',
+            password='testpass123',
+            role='admin',
+            is_staff=True,
+        )
+
+        self.category = Category.objects.create(name='Ops Category', is_active=True)
+        self.manufacturer = Manufacturer.objects.create(name='Ops Manufacturer', country='PH', is_active=True)
+        self.medicine = Medicine.objects.create(
+            name='Ops Test Medicine',
+            category=self.category,
+            manufacturer=self.manufacturer,
+            unit_price=Decimal('20.00'),
+            cost_price=Decimal('12.00'),
+            dosage_form='tablet',
+            strength='500mg',
+            current_stock=220,
+            reorder_point=35,
+            units_per_box=10,
+        )
+
+        seeded_order = Order.objects.create(
+            order_number='OPS-TEST-001',
+            customer_name='Ops Customer',
+            customer_phone='09175551234',
+            customer_address='Ops Address',
+            status='delivered',
+            payment_status='paid',
+            subtotal=Decimal('100.00'),
+            tax_amount=Decimal('0.00'),
+            shipping_cost=Decimal('0.00'),
+            discount_amount=Decimal('0.00'),
+            total_amount=Decimal('100.00'),
+            delivery_method='delivery',
+        )
+        OrderItem.objects.create(
+            order=seeded_order,
+            medicine=self.medicine,
+            quantity=10,
+            unit='boxes',
+            unit_price=Decimal('20.00'),
+            total_price=Decimal('20.00'),
+        )
+
+    def test_forecast_creation_persists_model_decision_audit_entry(self):
+        today = timezone.now().date()
+        forecast = DemandForecast.objects.create(
+            medicine=self.medicine,
+            forecast_period='monthly',
+            forecast_horizon=3,
+            arima_p=1,
+            arima_d=1,
+            arima_q=1,
+            aic=120.0,
+            bic=130.0,
+            rmse=5.0,
+            mae=4.0,
+            mape=9.0,
+            forecasted_demand=[100, 102, 104],
+            confidence_intervals={'lower': [95, 97, 99], 'upper': [105, 107, 109]},
+            sarimax_results={
+                'fallback_used': False,
+                'features_used': ['month_sin', 'month_cos'],
+            },
+            model_comparison={
+                'recommended_model': 'sarimax',
+                'recommendation_explanation': 'SARIMAX selected due to lower MAPE and RMSE.',
+                'improvement_pct': {'mape': 10.0},
+            },
+            exogenous_features=['month_sin', 'month_cos'],
+            training_data_start=today - timedelta(days=365),
+            training_data_end=today,
+            training_data_points=12,
+        )
+
+        audit_entry = AuditLog.objects.filter(
+            object_id=forecast.id,
+            module='analytics',
+            function_name='ARIMAForecastingService.generate_forecast',
+        ).first()
+
+        self.assertIsNotNone(audit_entry)
+        self.assertEqual(audit_entry.action, 'create')
+        self.assertEqual(audit_entry.metadata.get('recommended_model'), 'sarimax')
+        self.assertFalse(audit_entry.metadata.get('fallback_used'))
+        self.assertIn('SARIMAX selected', audit_entry.metadata.get('recommendation_explanation', ''))
+
+    def test_fallback_reason_is_persisted_and_available_for_operational_review(self):
+        today = timezone.now().date()
+        fallback_reason = 'No stable exogenous features available after sanitization'
+
+        forecast = DemandForecast.objects.create(
+            medicine=self.medicine,
+            forecast_period='monthly',
+            forecast_horizon=3,
+            arima_p=1,
+            arima_d=1,
+            arima_q=1,
+            aic=140.0,
+            bic=150.0,
+            rmse=6.0,
+            mae=5.0,
+            mape=12.0,
+            forecasted_demand=[98, 100, 101],
+            confidence_intervals={'lower': [93, 95, 96], 'upper': [103, 105, 106]},
+            sarimax_results={
+                'fallback_used': True,
+                'fallback_reason': fallback_reason,
+                'features_used': [],
+            },
+            model_comparison={
+                'recommended_model': 'arima',
+                'recommendation_explanation': 'ARIMA retained because SARIMAX exogenous signals were unstable.',
+                'improvement_pct': {'mape': 0.0},
+            },
+            exogenous_features=[],
+            training_data_start=today - timedelta(days=365),
+            training_data_end=today,
+            training_data_points=12,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('analytics:api_forecast_data', args=[forecast.id]))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('sarimax', {}).get('fallback_used'))
+        self.assertEqual(payload.get('sarimax', {}).get('fallback_reason'), fallback_reason)
+
+        audit_entry = AuditLog.objects.filter(object_id=forecast.id, module='analytics').first()
+        self.assertIsNotNone(audit_entry)
+        self.assertTrue(audit_entry.metadata.get('fallback_used'))
+        self.assertEqual(audit_entry.metadata.get('fallback_reason'), fallback_reason)

@@ -12,12 +12,12 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import importlib
 
 """
 This is for render deployment
 https://render.com/docs/deploy-django
 """
-import dj_database_url
 """
 End render deployment
 """
@@ -35,7 +35,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-)05bc-z7k=0dgk_)p3368
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = 'RENDER' not in os.environ
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # Render configuration
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
@@ -121,14 +121,30 @@ WSGI_APPLICATION = 'medicine_ordering_system.wsgi.application'
 #     }
 # }
 
-DATABASES = {
+database_url = os.environ.get('DATABASE_URL')
+dj_database_url = None
+if database_url:
+    try:
+        dj_database_url = importlib.import_module('dj_database_url')
+    except ImportError:
+        dj_database_url = None
+
+if database_url and dj_database_url is not None:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=database_url,
+            conn_max_age=600,
+        )
+    }
+else:
+    DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': 'oncare_medicine_db',  # Replace with your PostgreSQL database name
-            'USER': 'postgres',  # Replace with your PostgreSQL username
-            'PASSWORD': 'z3rr3Itug',  # Replace with your PostgreSQL password
-            'HOST': 'localhost',  # Or the IP address/hostname of your PostgreSQL server
-            'PORT': '5433',  # Default PostgreSQL port, change if different
+            'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.postgresql'),
+            'NAME': os.environ.get('DB_NAME', 'oncare_medicine_db'),
+            'USER': os.environ.get('DB_USER', 'postgres'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', 'z3rr3Itug'),
+            'HOST': os.environ.get('DB_HOST', 'localhost'),
+            'PORT': os.environ.get('DB_PORT', '5433'),
         }
     }
 
@@ -260,6 +276,9 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
 # Logging
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -267,7 +286,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'django.log',
+            'filename': LOGS_DIR / 'django.log',
         },
     },
     'loggers': {
@@ -275,6 +294,16 @@ LOGGING = {
             'handlers': ['file'],
             'level': 'INFO',
             'propagate': True,
+        },
+        'analytics': {
+            'handlers': ['file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'audits': {
+            'handlers': ['file'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
 }

@@ -402,6 +402,7 @@
                                                 <span id="cmpRecommended" class="recommendation-badge sarimax" style="display:none;"></span>
                                             </div>
                                         </div>
+                                        <div id="cmpReasoning" class="small text-muted mb-2">-</div>
                                         <div class="table-responsive">
                                             <table class="table table-sm table-striped">
                                                 <thead>
@@ -481,10 +482,60 @@ function resetDualModelPanel(message = 'Run analysis to load the latest SARIMAX 
     document.getElementById('dualModelEmpty').textContent = message;
     document.getElementById('dualModelEmpty').style.display = 'block';
     document.getElementById('dualModelContent').style.display = 'none';
+    document.getElementById('cmpReasoning').textContent = '-';
     const rec = document.getElementById('cmpRecommended');
     rec.style.display = 'none';
     rec.className = 'recommendation-badge sarimax';
     rec.textContent = '';
+}
+
+async function loadDualModelSummary(medicineId) {
+    try {
+        const response = await fetch(`/analytics/api/forecast/best-auto/?medicine_id=${medicineId}`);
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+            resetDualModelPanel(data.error || 'No model comparison data is available for this medicine.');
+            return;
+        }
+
+        const sarimax = data.sarimax || {};
+        const comparison = data.model_comparison || {};
+        const sarimaxMetrics = comparison.sarimax || {};
+
+        const sarimaxOrder = sarimax.order || {};
+        const seasonalOrder = sarimax.seasonal_order || {};
+        const features = data.exogenous_features || sarimax.features_used || [];
+        const reasoning = comparison.recommendation_explanation || data.selection_reason || 'Model recommendation details are not available.';
+
+        document.getElementById('cmpSarimaxOrder').textContent = (sarimaxOrder.p !== undefined)
+            ? `ARIMA(${sarimaxOrder.p},${sarimaxOrder.d},${sarimaxOrder.q})`
+            : '-';
+        document.getElementById('cmpSeasonalOrder').textContent = (seasonalOrder.P !== undefined)
+            ? `(${seasonalOrder.P},${seasonalOrder.D},${seasonalOrder.Q},${seasonalOrder.m})`
+            : '-';
+        document.getElementById('cmpFeatures').textContent = features.length ? features.join(', ') : 'No exogenous features recorded';
+
+        document.getElementById('cmpSarimaxMape').textContent = formatValue(sarimaxMetrics.mape ?? sarimax.mape, 2, '%');
+        document.getElementById('cmpSarimaxRmse').textContent = formatValue(sarimaxMetrics.rmse ?? sarimax.rmse, 4);
+        document.getElementById('cmpSarimaxMae').textContent = formatValue(sarimaxMetrics.mae ?? sarimax.mae, 4);
+        document.getElementById('cmpReasoning').textContent = reasoning;
+
+        const recommended = String(comparison.recommended_model || '').toLowerCase();
+        const rec = document.getElementById('cmpRecommended');
+        if (recommended === 'arima' || recommended === 'sarimax') {
+            rec.className = `recommendation-badge ${recommended}`;
+            rec.textContent = `Recommended: ${recommended.toUpperCase()}`;
+            rec.style.display = 'inline-block';
+        } else {
+            rec.style.display = 'none';
+        }
+
+        document.getElementById('dualModelEmpty').style.display = 'none';
+        document.getElementById('dualModelContent').style.display = 'block';
+    } catch (error) {
+        resetDualModelPanel('Unable to load model comparison for the selected medicine.');
+    }
 }
 
 async function runStepAnalysis() {
@@ -504,6 +555,7 @@ async function runStepAnalysis() {
         }
 
         displayStepResults(data);
+        await loadDualModelSummary(medicineId);
         document.getElementById('loadingSection').style.display = 'none';
         document.getElementById('analysisResults').style.display = 'block';
     } catch (error) {
