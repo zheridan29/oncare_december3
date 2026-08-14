@@ -36,8 +36,8 @@ urlpatterns = [
     path('api/orders/<int:pk>/', views.OrderDetailAPIView.as_view(), name='api_order_detail'),
     path('api/cart/', views.CartAPIView.as_view(), name='api_cart'),
     path('api/cart/add/', views.CartAddAPIView.as_view(), name='api_cart_add'),
-    path('api/cart/remove/', views.CartRemoveAPIView.as_view(), name='api_cart_remove'),
-    path('api/cart/update/', views.CartUpdateAPIView.as_view(), name='api_cart_update'),
+    path('api/cart/remove/<int:item_id>/', views.CartRemoveAPIView.as_view(), name='api_cart_remove'),
+    path('api/cart/update/<int:item_id>/', views.CartUpdateAPIView.as_view(), name='api_cart_update'),
     path('api/pharmacist/dashboard/', views.PharmacistDashboardAPIView.as_view(), name='api_pharmacist_dashboard'),
     path('api/sales-rep/dashboard/', views.SalesRepDashboardAPIView.as_view(), name='api_sales_rep_dashboard'),
     

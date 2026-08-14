@@ -173,3 +173,23 @@ class CartModelTests(TestCase):
         cart = Cart.objects.create(sales_rep=self.user)
         expected_str = f"Cart for {self.user.username}"
         self.assertEqual(str(cart), expected_str)
+
+    def test_cart_item_api_routes_accept_item_id(self):
+        """Cart API update/remove endpoints should accept item ID in the URL."""
+        cart = Cart.objects.create(sales_rep=self.user)
+        cart_item = CartItem.objects.create(cart=cart, medicine=self.medicine, quantity=2)
+
+        self.client.force_login(self.user)
+
+        update_response = self.client.put(
+            f'/orders/api/cart/update/{cart_item.id}/',
+            data=json.dumps({'quantity': 5}),
+            content_type='application/json'
+        )
+        self.assertEqual(update_response.status_code, 200)
+        cart_item.refresh_from_db()
+        self.assertEqual(cart_item.quantity, 5)
+
+        remove_response = self.client.delete(f'/orders/api/cart/remove/{cart_item.id}/')
+        self.assertEqual(remove_response.status_code, 200)
+        self.assertFalse(CartItem.objects.filter(id=cart_item.id).exists())

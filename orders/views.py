@@ -35,6 +35,7 @@ class OrderDashboardView(LoginRequiredMixin, TemplateView):
         
         # Get order statistics
         total_orders = Order.objects.filter(sales_rep=user).count()
+        confirmed_orders = Order.objects.filter(sales_rep=user, status='confirmed').count()
         pending_orders = Order.objects.filter(sales_rep=user, status='pending').count()
         processing_orders = Order.objects.filter(sales_rep=user, status='processing').count()
         ready_orders = Order.objects.filter(sales_rep=user, status='ready_for_pickup').count()
@@ -51,6 +52,7 @@ class OrderDashboardView(LoginRequiredMixin, TemplateView):
         context.update({
             'recent_orders': recent_orders,
             'total_orders': total_orders,
+            'confirmed_orders': confirmed_orders,
             'pending_orders': pending_orders,
             'processing_orders': processing_orders,
             'ready_orders': ready_orders,

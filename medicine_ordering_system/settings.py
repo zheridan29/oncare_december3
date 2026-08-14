@@ -144,7 +144,7 @@ else:
             'USER': os.environ.get('DB_USER', 'postgres'),
             'PASSWORD': os.environ.get('DB_PASSWORD', 'z3rr3Itug'),
             'HOST': os.environ.get('DB_HOST', 'localhost'),
-            'PORT': os.environ.get('DB_PORT', '5433'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
         }
     }
 

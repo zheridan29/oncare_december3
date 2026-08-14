@@ -183,7 +183,7 @@ class OrderItem(models.Model):
         unique_together = ['order', 'medicine']
     
     def __str__(self):
-        return f"{self.medicine.name} x {self.quantity} {self.unit} in Order {self.order.order_number}"
+        return f"{self.medicine.name} x {self.quantity} in Order {self.order.order_number}"
     
     def save(self, *args, **kwargs):
         # When unit is 'boxes', multiply by units_per_box to get total units, then by unit_price
