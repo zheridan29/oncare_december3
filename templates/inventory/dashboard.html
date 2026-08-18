@@ -21,6 +21,14 @@
     </div>
 </div>
 
+<div id="new-pending-order-alert" class="alert alert-success alert-dismissible fade d-none" role="alert" aria-live="polite">
+    <i class="fas fa-bell me-2"></i>
+    <strong>New pending order</strong>
+    <span id="new-pending-order-message"></span>
+    <a href="{% url 'orders:pharmacist_dashboard' %}" class="alert-link ms-2">Review orders</a>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Dismiss"></button>
+</div>
+
 <!-- Statistics Cards -->
 <div class="row mb-4">
     <div class="col-md-3">

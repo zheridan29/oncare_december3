@@ -9,6 +9,7 @@ class RealtimeInventoryDashboard {
         this.pollInterval = 5000; // 5 seconds
         this.pollTimer = null;
         this.isPolling = false;
+        this.previousPendingOrders = null;
         
         this.init();
     }
@@ -99,8 +100,41 @@ class RealtimeInventoryDashboard {
             return;
         }
         
+        const pendingOrders = data.statistics.pending_orders || 0;
+        this.updatePendingOrderAlert(pendingOrders);
+        this.updateNavigationCount(pendingOrders);
+
         // Update statistics cards
         this.updateStatisticsCards(data.statistics);
+    }
+
+    updateNavigationCount(pendingOrders) {
+        const countElement = document.getElementById('nav-pending-orders-count');
+
+        if (countElement) {
+            countElement.textContent = pendingOrders;
+            countElement.classList.toggle('d-none', pendingOrders === 0);
+        }
+    }
+
+    updatePendingOrderAlert(pendingOrders) {
+        const alertElement = document.getElementById('new-pending-order-alert');
+        const messageElement = document.getElementById('new-pending-order-message');
+
+        if (!alertElement || !messageElement) {
+            return;
+        }
+
+        if (this.previousPendingOrders !== null && pendingOrders > this.previousPendingOrders) {
+            const newOrders = pendingOrders - this.previousPendingOrders;
+            messageElement.textContent = newOrders === 1
+                ? '1 order is ready for review.'
+                : `${newOrders} orders are ready for review.`;
+            alertElement.classList.remove('d-none');
+            alertElement.classList.add('show');
+        }
+
+        this.previousPendingOrders = pendingOrders;
     }
     
     updateStatisticsCards(statistics) {

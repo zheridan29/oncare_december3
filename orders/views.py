@@ -212,7 +212,7 @@ class OrderCreateView(LoginRequiredMixin, CreateView):
     model = Order
     template_name = 'orders/order_form.html'
     form_class = OrderWithItemsForm
-    success_url = reverse_lazy('orders:order_list')
+    success_url = reverse_lazy('orders:dashboard')
     
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_sales_rep:
