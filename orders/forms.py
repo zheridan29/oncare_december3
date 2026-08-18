@@ -295,12 +295,12 @@ class ManualPaymentForm(forms.Form):
         help_text='Date when payment was made'
     )
     payment_proof = forms.FileField(
-        required=False,
+        required=True,
         widget=forms.FileInput(attrs={
             'class': 'form-control',
             'accept': '.jpg,.jpeg,.png,.pdf,.JPG,.JPEG,.PNG,.PDF'
         }),
-        help_text='Upload payment receipt or screenshot - Only images (JPG, PNG) and PDF files are allowed (optional)'
+        help_text='Upload payment receipt or screenshot - Only images (JPG, PNG) and PDF files are allowed'
     )
     notes = forms.CharField(
         required=False,

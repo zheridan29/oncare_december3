@@ -98,9 +98,9 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{% url 'orders:pharmacist_dashboard' %}">
+                                <a class="nav-link position-relative" href="{% url 'orders:pharmacist_dashboard' %}">
                                     <i class="fas fa-clipboard-check me-1"></i>Order Fulfillment
-                                    <span id="nav-pending-orders-count" class="badge rounded-pill bg-danger ms-1" aria-label="Pending orders">0</span>
+                                    <span id="nav-pending-orders-count" class="badge rounded-pill bg-danger position-absolute top-0 end-0 translate-middle nav-pending-orders-badge{% if not pending_orders %} d-none{% endif %}" aria-label="Pending orders">{{ pending_orders|default:0 }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -230,6 +230,10 @@
     <!-- Real-time Notifications -->
     {% if user.is_authenticated %}
     <script src="{% static 'js/realtime_notifications.js' %}"></script>
+    {% endif %}
+
+    {% if user.is_pharmacist_admin %}
+    <script src="{% static 'js/realtime_inventory_dashboard.js' %}?v=2"></script>
     {% endif %}
     
     {% block extra_js %}{% endblock %}

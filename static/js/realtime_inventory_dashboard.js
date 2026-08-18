@@ -22,16 +22,16 @@ class RealtimeInventoryDashboard {
             this.start();
         }
     }
-    
+
     start() {
-        // Check if we're on the inventory dashboard page
         const dashboardElement = document.getElementById('inventory-dashboard');
-        if (!dashboardElement) {
-            console.log('Inventory dashboard element not found, skipping real-time updates');
-            return; // Not on the dashboard page
+        const navigationCountElement = document.getElementById('nav-pending-orders-count');
+        if (!dashboardElement && !navigationCountElement) {
+            console.log('Inventory dashboard elements not found, skipping real-time updates');
+            return;
         }
         
-        console.log('Inventory dashboard element found, starting real-time updates');
+        console.log('Inventory dashboard elements found, starting real-time updates');
         
         // Initial fetch
         this.fetchDashboardData();

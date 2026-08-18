@@ -82,6 +82,7 @@ class RealtimeSalesDashboard {
         this.updateText('stat-total-orders', statistics.total_orders);
         this.updateText('stat-pending-orders', statistics.pending_orders);
         this.updateText('stat-processing-orders', statistics.processing_orders);
+        this.updateText('stat-confirmed-orders', statistics.confirmed_orders);
         this.updateText('stat-ready-orders', statistics.ready_orders);
     }
 

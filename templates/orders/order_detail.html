@@ -306,8 +306,8 @@
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label for="payment_proof" class="form-label">Payment Proof (Optional)</label>
-                                <input type="file" class="form-control" id="payment_proof" name="payment_proof" accept=".jpg,.jpeg,.png,.pdf,.JPG,.JPEG,.PNG,.PDF" {% if has_pending_payment_submission %}disabled{% endif %}>
+                                <label for="payment_proof" class="form-label">Payment Proof *</label>
+                                <input type="file" class="form-control" id="payment_proof" name="payment_proof" accept=".jpg,.jpeg,.png,.pdf,.JPG,.JPEG,.PNG,.PDF" required {% if has_pending_payment_submission %}disabled{% endif %}>
                                 <small class="text-muted">Upload screenshot or receipt of your payment. Only image files (JPG, PNG) and PDF files are allowed. Maximum file size: 10MB</small>
                             </div>
                             <div class="mb-3">

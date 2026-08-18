@@ -33,6 +33,10 @@ body {
     border-radius: 5px;
 }
 
+.nav-pending-orders-badge {
+    top: 0.75rem !important;
+}
+
 /* Cards */
 .card {
     border: none;
